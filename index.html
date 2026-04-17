@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P06足跡</title>
+  <meta name="description" content="P06足跡：隨手記下想法、行動與當下的時間。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Zen+Old+Mincho:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">P06 Project</p>
+        <h1>P06 足跡</h1>
+        <p class="subtitle">把正在做的事、突然浮現的想法，留成一段一段有時間的文字痕跡。</p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="card input-card">
+        <div class="section-title-wrap">
+          <h2>此刻記一筆</h2>
+          <p id="todayLabel" class="small-muted"></p>
+        </div>
+
+        <label for="entryInput" class="label">想法 / 行動紀錄</label>
+        <textarea id="entryInput" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
+
+        <div class="toolbar">
+          <button id="saveBtn" class="btn primary">送出記錄</button>
+          <button id="voiceBtn" class="btn secondary" type="button">🎙️ 語音輸入</button>
+          <button id="refreshBtn" class="btn ghost" type="button">重新整理</button>
+          <span id="voiceStatus" class="status-text"></span>
+        </div>
+
+        <div id="messageBox" class="message-box" aria-live="polite"></div>
+      </section>
+
+      <section class="stats-grid">
+        <article class="card stat-card">
+          <p class="stat-label">今日筆數</p>
+          <p id="todayCount" class="stat-value">0</p>
+        </article>
+        <article class="card stat-card">
+          <p class="stat-label">最新記錄時間</p>
+          <p id="latestTime" class="stat-value small">尚無資料</p>
+        </article>
+      </section>
+
+      <section class="card log-card">
+        <div class="section-title-wrap row-between">
+          <div>
+            <h2>今日足跡</h2>
+            <p class="small-muted">依時間倒序顯示</p>
+          </div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
