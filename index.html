@@ -32,7 +32,7 @@
 
         <div class="toolbar">
           <button id="saveBtn" class="btn primary">送出記錄</button>
-          <button id="voiceBtn" class="btn secondary" type="button">🎙️ 語音輸入</button>
+          <button id="voiceBtn" class="btn secondary" type="button">🎙️ 開始語音</button>
           <button id="refreshBtn" class="btn ghost" type="button">重新整理</button>
           <span id="voiceStatus" class="status-text"></span>
         </div>
@@ -42,7 +42,7 @@
 
       <section class="stats-grid">
         <article class="card stat-card">
-          <p class="stat-label">今日筆數</p>
+          <p class="stat-label">所選日期筆數</p>
           <p id="todayCount" class="stat-value">0</p>
         </article>
         <article class="card stat-card">
@@ -54,8 +54,12 @@
       <section class="card log-card">
         <div class="section-title-wrap row-between">
           <div>
-            <h2>今日足跡</h2>
+            <h2 id="logSectionTitle">今日足跡</h2>
             <p class="small-muted">依時間倒序顯示</p>
+          </div>
+          <div class="date-tools">
+            <label for="datePicker" class="date-label">選擇日期</label>
+            <input id="datePicker" class="date-input" type="date" />
           </div>
         </div>
         <div id="timeline" class="timeline"></div>
