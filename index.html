@@ -21,6 +21,21 @@
     </header>
 
     <main class="container">
+      <section class="card access-card">
+        <div class="section-title-wrap">
+          <h2>進入代碼</h2>
+          <p class="small-muted">目前是輕量分流機制。輸入相同代碼，才能看到相同代碼的紀錄。</p>
+        </div>
+        <div class="access-row">
+          <div class="access-field">
+            <label for="codeInput" class="label">代碼</label>
+            <input id="codeInput" type="text" maxlength="50" placeholder="例如：teacher01" autocomplete="off" />
+          </div>
+          <button id="applyCodeBtn" class="btn primary" type="button">套用代碼</button>
+        </div>
+        <p id="currentCodeText" class="small-muted current-code"></p>
+      </section>
+
       <section class="card input-card">
         <div class="section-title-wrap">
           <h2>此刻記一筆</h2>

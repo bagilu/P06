@@ -1,127 +1,113 @@
-# P06足跡
+# README_SYSTEM.md
 
-P06足跡是一個以 **GitHub Pages + Supabase** 建置的極簡個人時序日誌系統。
+# P06 足跡
 
-## 一、系統目的
-
-讓使用者可以隨時快速輸入：
-- 正在做的事情
-- 當下浮現的想法
-- 短暫待辦或提醒
-
-系統會自動把每次輸入與當時時間一起記錄下來，形成一天中的「足跡」。
+P06足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。用途是隨手記下當下正在做的事、腦中浮現的想法，並讓系統自動記錄時間，形成可回看的文字足跡。
 
 ---
 
-## 二、目前版本功能
+## 一、目前版本重點
 
-### 1. 文字輸入
-可直接輸入文字並送出。
+本版本為 v3，包含以下功能：
 
-### 2. 自動記錄時間
-每筆資料會自動記錄 `created_at`。
-
-### 3. 日期切換查看
-可透過日期欄位切換查看今天、昨天或更早的足跡。
-
-### 4. 語音輸入（自動重啟辨識）
-若手機或瀏覽器支援 Web Speech API，可按下麥克風按鈕進行語音辨識。
-
-本版加入「自動重啟辨識」機制：
-- 開始後，若使用者暫停說話
-- 瀏覽器自動結束當前辨識 session
-- 前端會在未手動停止前自動再啟動下一輪辨識
-
-因此整體體感會更接近「一路待命，直到手動停止」。
+1. 文字輸入後可直接寫入 Supabase
+2. 每筆資料自動附上建立時間與台北日期
+3. 可選擇日期查看過去足跡
+4. 支援瀏覽器語音辨識輸入
+5. 語音辨識中斷後，會自動重新啟動等待下一段說話
+6. 新增 access_code 代碼輸入，用於資料分流
+7. 只有輸入相同代碼時，前端才會查詢並顯示該代碼紀錄
 
 ---
 
-## 三、資料表命名規則
+## 二、重要說明
 
-本專案資料表統一使用：
+### 1. access_code 不是正式安全機制
 
-- `tblp06_diary_logs`
+目前 access_code 只是前端分流條件，不是完整的權限控管，也不是帳號登入系統。
 
-View：
-- `vw_tblp06_today_logs`
+也就是說：
+- 平常使用上，可用不同代碼區分不同資料
+- 但若有人知道 Supabase 結構並直接呼叫 API，理論上仍可能讀取資料
+
+因此本版適合：
+- 個人使用
+- 測試用途
+- 暫不公開的原型系統
+
+若未來要正式保護隱私，建議升級為：
+- Supabase Auth 登入
+- 或 Edge Function 代理查詢與寫入
+- 或兩者並用
+
+### 2. 舊資料處理
+
+升級到 v3 後，舊資料若原本沒有 access_code，SQL 會自動補成 `default`。
+因此如果要看到舊資料，請輸入代碼：
+
+`default`
 
 ---
 
-## 四、資料表結構
+## 三、主要資料表
 
-### `tblp06_diary_logs`
+### `public.tblp06_diary_logs`
+
+欄位：
 - `id`：UUID 主鍵
 - `content`：文字內容
-- `source`：輸入來源（`keyboard` / `voice`）
-- `entry_date`：台北時區日期
-- `created_at`：建立時間（timestamptz）
+- `source`：輸入來源，`keyboard` 或 `voice`
+- `access_code`：代碼分流欄位
+- `entry_date`：台北日期
+- `created_at`：UTC 建立時間
 
 ---
 
-## 五、檔案結構
+## 四、前端檔案
 
-- `index.html`：主頁面
+- `index.html`：主畫面
 - `styles.css`：介面樣式（咖啡－米色舊日式風格）
-- `app.js`：前端互動、Supabase 存取、語音自動重啟
-- `config.example.js`：設定檔範例
-- `config.js`：實際設定檔（需自行填入）
-- `schema.sql`：Supabase 建表 SQL
-- `README_SYSTEM.md`：系統說明
+- `app.js`：主要功能邏輯
+- `config.example.js`：範例設定檔
+- `config.js`：實際設定檔
+- `schema.sql`：Supabase SQL
+
+---
+
+## 五、語音辨識修正
+
+### 本版修正內容
+
+前一版在某些情況下，語音辨識結果可能出現連續重複，例如：
+
+`系統測試 系統測試`
+
+本版已改為：
+- 將最終辨識結果拆成獨立片段管理
+- 對短時間內重複出現的相同 final transcript 做去重
+- 保留 interim 顯示，但不再重複累加到 committed 文字中
+
+此修正特別針對 Android 手機上語音 session 自動重啟時，可能重送前一段 final transcript 的情況。
 
 ---
 
 ## 六、部署方式
 
-### Step 1：Supabase
-1. 建立一個 Supabase 專案
-2. 到 SQL Editor 執行 `schema.sql`
-3. 到 Project Settings 取得：
-   - Project URL
-   - anon public key
-
-### Step 2：GitHub Pages
-1. 上傳所有前端檔案到 GitHub repository
-2. 將 `config.example.js` 複製成 `config.js`
-3. 在 `config.js` 填入自己的 Supabase 連線資訊
-4. 啟用 GitHub Pages
+1. 在 Supabase SQL Editor 執行 `schema.sql`
+2. 編輯 `config.js`，填入：
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+3. 將整個資料夾上傳到 GitHub Pages 專案
+4. 開啟網站後，先輸入 access_code，再開始使用
 
 ---
 
-## 七、安全說明
-
-目前此版本為 **極簡個人原型**，使用 anon key 並透過 RLS policy 允許前端直接讀寫。
-
-若未來紀錄內容涉及：
-- 敏感個人資訊
-- 研究資料
-- 私密日誌
-
-建議改為：
-1. 前端不直接 insert
-2. 改走 Supabase Edge Function
-3. 將更嚴格的驗證與寫入邏輯放到 server side
-
----
-
-## 八、後續可擴充方向
+## 七、下一步可擴充方向
 
 1. 關鍵字搜尋
-2. 標籤分類
-3. 每日輸入次數統計
-4. 匯出 CSV
-5. 密碼保護
-6. localStorage 暫存 fallback
-7. 長期時間軸視圖
-8. 行動版更大按鈕介面
+2. 每日統計圖
+3. 匯出 CSV
+4. localStorage 暫存失敗補送
+5. 正式登入與權限控管
+6. Edge Function 安全查詢版本
 
----
-
-## 九、設計風格
-
-本版採用：
-- 咖啡色
-- 米色
-- 紙張感背景
-- 舊日式簡潔排版
-
-整體目標是讓輸入記錄時有一種安靜、溫和、可長期使用的感覺。

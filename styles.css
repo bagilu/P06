@@ -390,3 +390,35 @@ textarea:focus {
     flex-direction: column;
   }
 }
+
+
+.access-card {
+  margin-bottom: 18px;
+}
+
+.access-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.access-field {
+  flex: 1 1 240px;
+}
+
+#codeInput {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(92, 66, 43, 0.25);
+  border-radius: 12px;
+  background: rgba(255,250,242,0.9);
+  color: #3e2c1e;
+  font-size: 1rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.current-code {
+  margin-top: 10px;
+}

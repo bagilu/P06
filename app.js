@@ -2,6 +2,9 @@
   const SUPABASE_URL = window.P06_CONFIG?.SUPABASE_URL;
   const SUPABASE_ANON_KEY = window.P06_CONFIG?.SUPABASE_ANON_KEY;
 
+  const STORAGE_KEY_CODE = 'p06_access_code';
+  const DEFAULT_CODE = 'default';
+
   const entryInput = document.getElementById('entryInput');
   const saveBtn = document.getElementById('saveBtn');
   const refreshBtn = document.getElementById('refreshBtn');
@@ -14,6 +17,9 @@
   const todayLabel = document.getElementById('todayLabel');
   const datePicker = document.getElementById('datePicker');
   const logSectionTitle = document.getElementById('logSectionTitle');
+  const codeInput = document.getElementById('codeInput');
+  const applyCodeBtn = document.getElementById('applyCodeBtn');
+  const currentCodeText = document.getElementById('currentCodeText');
 
   const taipeiDateFormatter = new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -31,12 +37,15 @@
   });
 
   const state = {
-    selectedDate: getTaipeiDateString(new Date())
+    selectedDate: getTaipeiDateString(new Date()),
+    accessCode: getSavedCode()
   };
 
   const todayDisplay = taipeiDateFormatter.format(new Date());
   todayLabel.textContent = `今日日期：${todayDisplay}`;
   datePicker.value = state.selectedDate;
+  codeInput.value = state.accessCode;
+  updateCurrentCodeText();
   updateSectionTitle();
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('YOUR_') || SUPABASE_ANON_KEY.includes('YOUR_')) {
@@ -44,6 +53,7 @@
     saveBtn.disabled = true;
     refreshBtn.disabled = true;
     voiceBtn.disabled = true;
+    applyCodeBtn.disabled = true;
   }
 
   const supabaseClient = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
@@ -53,6 +63,12 @@
   async function loadLogsByDate(dateStr = state.selectedDate) {
     if (!supabaseClient) return;
 
+    const accessCode = normalizeCode(state.accessCode);
+    if (!accessCode) {
+      showMessage('請先輸入代碼。', 'error');
+      return;
+    }
+
     state.selectedDate = dateStr;
     datePicker.value = dateStr;
     updateSectionTitle();
@@ -60,8 +76,9 @@
 
     const { data, error } = await supabaseClient
       .from('tblp06_diary_logs')
-      .select('id, content, source, entry_date, created_at')
+      .select('id, content, source, entry_date, created_at, access_code')
       .eq('entry_date', dateStr)
+      .eq('access_code', accessCode)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -70,7 +87,7 @@
     }
 
     renderTimeline(data || []);
-    showMessage(`已載入 ${dateStr} 共 ${data.length} 筆紀錄。`, 'success');
+    showMessage(`已載入代碼 ${accessCode} 於 ${dateStr} 的 ${data.length} 筆紀錄。`, 'success');
   }
 
   function renderTimeline(items) {
@@ -78,7 +95,7 @@
 
     if (!items.length) {
       latestTime.textContent = '尚無資料';
-      timeline.innerHTML = `<div class="empty-box">${escapeHtml(formatDateLabel(state.selectedDate))}還沒有任何足跡。</div>`;
+      timeline.innerHTML = `<div class="empty-box">${escapeHtml(formatDateLabel(state.selectedDate))} 在代碼 ${escapeHtml(state.accessCode)} 下還沒有任何足跡。</div>`;
       return;
     }
 
@@ -102,6 +119,14 @@
     if (!supabaseClient) return;
 
     const content = entryInput.value.trim();
+    const accessCode = normalizeCode(state.accessCode);
+
+    if (!accessCode) {
+      showMessage('請先輸入代碼。', 'error');
+      codeInput.focus();
+      return;
+    }
+
     if (!content) {
       showMessage('請先輸入文字內容。', 'error');
       entryInput.focus();
@@ -114,7 +139,7 @@
 
     const { error } = await supabaseClient
       .from('tblp06_diary_logs')
-      .insert([{ content, source }]);
+      .insert([{ content, source, access_code: accessCode }]);
 
     saveBtn.disabled = false;
 
@@ -125,8 +150,36 @@
 
     entryInput.value = '';
     entryInput.dataset.source = 'keyboard';
-    showMessage('已成功儲存這一筆足跡。', 'success');
+    showMessage(`已成功儲存到代碼 ${accessCode}。`, 'success');
     await loadLogsByDate(state.selectedDate);
+  }
+
+  function applyCode() {
+    const normalized = normalizeCode(codeInput.value);
+    if (!normalized) {
+      showMessage('代碼不可為空白。', 'error');
+      codeInput.focus();
+      return;
+    }
+
+    state.accessCode = normalized;
+    window.localStorage.setItem(STORAGE_KEY_CODE, normalized);
+    codeInput.value = normalized;
+    updateCurrentCodeText();
+    loadLogsByDate(state.selectedDate);
+  }
+
+  function updateCurrentCodeText() {
+    currentCodeText.textContent = `目前代碼：${state.accessCode}`;
+  }
+
+  function getSavedCode() {
+    const saved = normalizeCode(window.localStorage.getItem(STORAGE_KEY_CODE) || '');
+    return saved || DEFAULT_CODE;
+  }
+
+  function normalizeCode(value) {
+    return String(value || '').trim().slice(0, 50);
   }
 
   function showMessage(message, type = 'success', autoHide = true) {
@@ -171,9 +224,8 @@
 
   function updateSectionTitle() {
     const todayStr = getTaipeiDateString(new Date());
-    logSectionTitle.textContent = state.selectedDate === todayStr
-      ? '今日足跡'
-      : `${formatDateLabel(state.selectedDate)} 足跡`;
+    const dateText = state.selectedDate === todayStr ? '今日足跡' : `${formatDateLabel(state.selectedDate)} 足跡`;
+    logSectionTitle.textContent = `${dateText}`;
   }
 
   function escapeHtml(value) {
@@ -202,12 +254,48 @@
 
     let isListening = false;
     let manuallyStopped = false;
-    let finalTranscript = '';
+    let baseText = '';
+    let committedChunks = [];
+    let lastFinalNormalized = '';
+    let lastFinalAt = 0;
+
+    function normalizeSpeechChunk(text) {
+      return String(text || '')
+        .replace(/[\s\u3000]+/g, '')
+        .trim();
+    }
+
+    function dedupeAndCommitFinal(text) {
+      const trimmed = String(text || '').trim();
+      if (!trimmed) return;
+
+      const normalized = normalizeSpeechChunk(trimmed);
+      const now = Date.now();
+
+      if (normalized && normalized === lastFinalNormalized && now - lastFinalAt < 2500) {
+        return;
+      }
+
+      committedChunks.push(trimmed);
+      lastFinalNormalized = normalized;
+      lastFinalAt = now;
+    }
+
+    function buildCombinedText(interimTranscript = '') {
+      const parts = [];
+      const cleanBase = baseText.trim();
+      const cleanCommitted = committedChunks.join(' ').trim();
+      const cleanInterim = String(interimTranscript || '').trim();
+
+      if (cleanBase) parts.push(cleanBase);
+      if (cleanCommitted) parts.push(cleanCommitted);
+      if (cleanInterim) parts.push(cleanInterim);
+
+      return parts.join(' ').trim();
+    }
 
     function syncInput(interimTranscript = '') {
-      const finalText = finalTranscript.trim();
-      const interimText = interimTranscript.trim();
-      const combined = [finalText, interimText].filter(Boolean).join(' ');
+      const combined = buildCombinedText(interimTranscript);
       entryInput.value = combined;
       if (combined) {
         entryInput.dataset.source = 'voice';
@@ -231,11 +319,10 @@
         return;
       }
 
-      finalTranscript = entryInput.value.trim();
-      if (finalTranscript) {
-        finalTranscript += ' ';
-      }
-
+      baseText = entryInput.value.trim();
+      committedChunks = [];
+      lastFinalNormalized = '';
+      lastFinalAt = 0;
       manuallyStopped = false;
       isListening = true;
       voiceStatus.textContent = '準備開始語音…';
@@ -254,7 +341,7 @@
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const transcript = event.results[i][0]?.transcript || '';
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
+          dedupeAndCommitFinal(transcript);
         } else {
           interimTranscript += transcript;
         }
@@ -297,6 +384,13 @@
 
   saveBtn.addEventListener('click', saveEntry);
   refreshBtn.addEventListener('click', () => loadLogsByDate(state.selectedDate));
+  applyCodeBtn.addEventListener('click', applyCode);
+  codeInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyCode();
+    }
+  });
   datePicker.addEventListener('change', (event) => {
     if (event.target.value) {
       loadLogsByDate(event.target.value);
