@@ -21,17 +21,18 @@
     </header>
 
     <main class="container">
-      <section class="card access-card">
+      <section id="accessCard" class="card access-card">
         <div class="section-title-wrap">
           <h2>進入代碼</h2>
-          <p class="small-muted">目前是輕量分流機制。輸入相同代碼，才能看到相同代碼的紀錄。</p>
+          <p id="accessHint" class="small-muted">目前是輕量分流機制。輸入相同代碼，才能看到相同代碼的紀錄。</p>
         </div>
         <div class="access-row">
           <div class="access-field">
             <label for="codeInput" class="label">代碼</label>
             <input id="codeInput" type="text" maxlength="50" placeholder="例如：teacher01" autocomplete="off" />
           </div>
-          <button id="applyCodeBtn" class="btn primary" type="button">套用代碼</button>
+          <button id="applyCodeBtn" class="btn primary" type="button">進入系統</button>
+          <button id="clearCodeBtn" class="btn ghost" type="button" hidden>清除代碼</button>
         </div>
         <p id="currentCodeText" class="small-muted current-code"></p>
       </section>
@@ -43,12 +44,12 @@
         </div>
 
         <label for="entryInput" class="label">想法 / 行動紀錄</label>
-        <textarea id="entryInput" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
+        <textarea id="entryInput" data-requires-code="true" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
 
         <div class="toolbar">
-          <button id="saveBtn" class="btn primary">送出記錄</button>
-          <button id="voiceBtn" class="btn secondary" type="button">🎙️ 開始語音</button>
-          <button id="refreshBtn" class="btn ghost" type="button">重新整理</button>
+          <button id="saveBtn" class="btn primary" data-requires-code="true">送出記錄</button>
+          <button id="voiceBtn" class="btn secondary" type="button" data-requires-code="true">🎙️ 開始語音</button>
+          <button id="refreshBtn" class="btn ghost" type="button" data-requires-code="true">重新整理</button>
           <span id="voiceStatus" class="status-text"></span>
         </div>
 
@@ -74,7 +75,7 @@
           </div>
           <div class="date-tools">
             <label for="datePicker" class="date-label">選擇日期</label>
-            <input id="datePicker" class="date-input" type="date" />
+            <input id="datePicker" class="date-input" type="date" data-requires-code="true" />
           </div>
         </div>
         <div id="timeline" class="timeline"></div>

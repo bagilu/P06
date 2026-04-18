@@ -3,7 +3,6 @@
   const SUPABASE_ANON_KEY = window.P06_CONFIG?.SUPABASE_ANON_KEY;
 
   const STORAGE_KEY_CODE = 'p06_access_code';
-  const DEFAULT_CODE = 'default';
 
   const entryInput = document.getElementById('entryInput');
   const saveBtn = document.getElementById('saveBtn');
@@ -20,6 +19,10 @@
   const codeInput = document.getElementById('codeInput');
   const applyCodeBtn = document.getElementById('applyCodeBtn');
   const currentCodeText = document.getElementById('currentCodeText');
+  const clearCodeBtn = document.getElementById('clearCodeBtn');
+  const accessHint = document.getElementById('accessHint');
+  const accessCard = document.getElementById('accessCard');
+  const mainControls = document.querySelectorAll('[data-requires-code="true"]');
 
   const taipeiDateFormatter = new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -44,16 +47,14 @@
   const todayDisplay = taipeiDateFormatter.format(new Date());
   todayLabel.textContent = `今日日期：${todayDisplay}`;
   datePicker.value = state.selectedDate;
-  codeInput.value = state.accessCode;
+  codeInput.value = state.accessCode || '';
   updateCurrentCodeText();
   updateSectionTitle();
+  updateCodeModeUI();
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('YOUR_') || SUPABASE_ANON_KEY.includes('YOUR_')) {
     showMessage('請先打開 config.js，填入 Supabase URL 與 anon key。', 'error');
-    saveBtn.disabled = true;
-    refreshBtn.disabled = true;
-    voiceBtn.disabled = true;
-    applyCodeBtn.disabled = true;
+    setGlobalDisabledState(true);
   }
 
   const supabaseClient = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
@@ -65,6 +66,7 @@
 
     const accessCode = normalizeCode(state.accessCode);
     if (!accessCode) {
+      renderTimeline([]);
       showMessage('請先輸入代碼。', 'error');
       return;
     }
@@ -92,6 +94,12 @@
 
   function renderTimeline(items) {
     todayCount.textContent = String(items.length);
+
+    if (!state.accessCode) {
+      latestTime.textContent = '尚未設定';
+      timeline.innerHTML = '<div class="empty-box">請先輸入代碼，系統才會顯示對應足跡。</div>';
+      return;
+    }
 
     if (!items.length) {
       latestTime.textContent = '尚無資料';
@@ -166,16 +174,70 @@
     window.localStorage.setItem(STORAGE_KEY_CODE, normalized);
     codeInput.value = normalized;
     updateCurrentCodeText();
+    updateCodeModeUI();
+    entryInput.focus();
     loadLogsByDate(state.selectedDate);
   }
 
+  function clearCode() {
+    window.localStorage.removeItem(STORAGE_KEY_CODE);
+    state.accessCode = '';
+    codeInput.value = '';
+    updateCurrentCodeText();
+    updateCodeModeUI();
+    renderTimeline([]);
+    showMessage('已清除目前代碼，請重新輸入。', 'success');
+    codeInput.focus();
+  }
+
   function updateCurrentCodeText() {
-    currentCodeText.textContent = `目前代碼：${state.accessCode}`;
+    if (state.accessCode) {
+      currentCodeText.textContent = `目前代碼：${state.accessCode}`;
+      clearCodeBtn.hidden = false;
+    } else {
+      currentCodeText.textContent = '目前尚未設定代碼';
+      clearCodeBtn.hidden = true;
+    }
+  }
+
+  function updateCodeModeUI() {
+    const hasCode = Boolean(normalizeCode(state.accessCode));
+    setRequiresCodeDisabled(!hasCode);
+
+    if (hasCode) {
+      accessCard.classList.remove('access-attention');
+      accessHint.textContent = '已自動帶入先前保存的代碼。您仍可隨時改用其他代碼。';
+      applyCodeBtn.textContent = '更換代碼';
+    } else {
+      accessCard.classList.add('access-attention');
+      accessHint.textContent = '第一次使用或已清除代碼。請先輸入代碼後再開始記錄。';
+      applyCodeBtn.textContent = '進入系統';
+    }
+  }
+
+  function setRequiresCodeDisabled(disabled) {
+    mainControls.forEach((element) => {
+      element.disabled = disabled;
+    });
+    entryInput.disabled = disabled;
+    datePicker.disabled = disabled;
+    refreshBtn.disabled = disabled;
+    voiceBtn.disabled = disabled;
+  }
+
+  function setGlobalDisabledState(disabled) {
+    saveBtn.disabled = disabled;
+    refreshBtn.disabled = disabled;
+    voiceBtn.disabled = disabled;
+    applyCodeBtn.disabled = disabled;
+    clearCodeBtn.disabled = disabled;
+    entryInput.disabled = disabled;
+    datePicker.disabled = disabled;
+    codeInput.disabled = disabled;
   }
 
   function getSavedCode() {
-    const saved = normalizeCode(window.localStorage.getItem(STORAGE_KEY_CODE) || '');
-    return saved || DEFAULT_CODE;
+    return normalizeCode(window.localStorage.getItem(STORAGE_KEY_CODE) || '');
   }
 
   function normalizeCode(value) {
@@ -311,6 +373,12 @@
     }
 
     voiceBtn.addEventListener('click', () => {
+      if (!state.accessCode) {
+        showMessage('請先設定代碼，再開始語音輸入。', 'error');
+        codeInput.focus();
+        return;
+      }
+
       if (isListening) {
         manuallyStopped = true;
         isListening = false;
@@ -385,6 +453,7 @@
   saveBtn.addEventListener('click', saveEntry);
   refreshBtn.addEventListener('click', () => loadLogsByDate(state.selectedDate));
   applyCodeBtn.addEventListener('click', applyCode);
+  clearCodeBtn.addEventListener('click', clearCode);
   codeInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -392,7 +461,7 @@
     }
   });
   datePicker.addEventListener('change', (event) => {
-    if (event.target.value) {
+    if (event.target.value && state.accessCode) {
       loadLogsByDate(event.target.value);
     }
   });
@@ -404,5 +473,9 @@
   });
 
   initSpeech();
-  loadLogsByDate(state.selectedDate);
+  if (state.accessCode) {
+    loadLogsByDate(state.selectedDate);
+  } else {
+    renderTimeline([]);
+  }
 })();

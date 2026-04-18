@@ -422,3 +422,96 @@ textarea:focus {
 .current-code {
   margin-top: 10px;
 }
+
+
+.access-card {
+  padding: 22px;
+  margin-bottom: 18px;
+}
+
+.access-attention {
+  border-color: #b57d4e;
+  box-shadow: 0 12px 28px rgba(122, 82, 48, 0.22);
+}
+
+.access-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-top: 6px;
+}
+
+.access-field {
+  flex: 1 1 280px;
+}
+
+.access-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #c9b299;
+  background: #fffaf3;
+  color: var(--ink);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.access-field input:focus,
+.date-input:focus {
+  outline: 2px solid rgba(122, 82, 48, 0.18);
+  border-color: var(--accent);
+}
+
+.current-code {
+  margin-top: 12px;
+}
+
+.empty-box {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px dashed #ccb8a3;
+  background: rgba(255,255,255,0.45);
+  color: var(--ink-soft);
+}
+
+.date-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.date-label {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.date-input {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #c9b299;
+  background: #fffaf3;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.timeline-content {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .row-between {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .date-tools {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
