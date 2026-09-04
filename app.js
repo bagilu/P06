@@ -1,8 +1,7 @@
 (function () {
   const SUPABASE_URL = window.P06_CONFIG?.SUPABASE_URL;
   const SUPABASE_ANON_KEY = window.P06_CONFIG?.SUPABASE_ANON_KEY;
-
-  const STORAGE_KEY_CODE = 'p06_access_code';
+  const AUTH_STORAGE_KEY = 'p06-auth-token';
 
   const entryInput = document.getElementById('entryInput');
   const saveBtn = document.getElementById('saveBtn');
@@ -16,13 +15,22 @@
   const todayLabel = document.getElementById('todayLabel');
   const datePicker = document.getElementById('datePicker');
   const logSectionTitle = document.getElementById('logSectionTitle');
-  const codeInput = document.getElementById('codeInput');
-  const applyCodeBtn = document.getElementById('applyCodeBtn');
-  const currentCodeText = document.getElementById('currentCodeText');
-  const clearCodeBtn = document.getElementById('clearCodeBtn');
-  const accessHint = document.getElementById('accessHint');
-  const accessCard = document.getElementById('accessCard');
-  const mainControls = document.querySelectorAll('[data-requires-code="true"]');
+
+  const emailInput = document.getElementById('emailInput');
+  const passwordInput = document.getElementById('passwordInput');
+  const loginBtn = document.getElementById('loginBtn');
+  const signupBtn = document.getElementById('signupBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const signedOutPanel = document.getElementById('signedOutPanel');
+  const signedInPanel = document.getElementById('signedInPanel');
+  const signedInText = document.getElementById('signedInText');
+  const authBadge = document.getElementById('authBadge');
+  const authMessage = document.getElementById('authMessage');
+  const legacyCard = document.getElementById('legacyCard');
+  const legacyCodeInput = document.getElementById('legacyCodeInput');
+  const claimLegacyBtn = document.getElementById('claimLegacyBtn');
+  const claimMessage = document.getElementById('claimMessage');
+  const authRequiredControls = document.querySelectorAll('[data-requires-auth="true"]');
 
   const taipeiDateFormatter = new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
@@ -41,33 +49,153 @@
 
   const state = {
     selectedDate: getTaipeiDateString(new Date()),
-    accessCode: getSavedCode()
+    user: null
   };
 
-  const todayDisplay = taipeiDateFormatter.format(new Date());
-  todayLabel.textContent = `今日日期：${todayDisplay}`;
+  todayLabel.textContent = `今日日期：${taipeiDateFormatter.format(new Date())}`;
   datePicker.value = state.selectedDate;
-  codeInput.value = state.accessCode || '';
-  updateCurrentCodeText();
   updateSectionTitle();
-  updateCodeModeUI();
+  updateAuthUI();
 
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('YOUR_') || SUPABASE_ANON_KEY.includes('YOUR_')) {
-    showMessage('請先打開 config.js，填入 Supabase URL 與 anon key。', 'error');
+    showBox(authMessage, '請先打開 config.js，填入 Supabase URL 與 anon key。', 'error', false);
     setGlobalDisabledState(true);
   }
 
   const supabaseClient = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storageKey: AUTH_STORAGE_KEY
+        }
+      })
     : null;
 
-  async function loadLogsByDate(dateStr = state.selectedDate) {
+  async function initAuth() {
     if (!supabaseClient) return;
 
-    const accessCode = normalizeCode(state.accessCode);
-    if (!accessCode) {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      showBox(authMessage, `讀取登入狀態失敗：${error.message}`, 'error');
+    }
+
+    state.user = data?.session?.user || null;
+    updateAuthUI();
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      state.user = session?.user || null;
+      updateAuthUI();
+      window.setTimeout(() => {
+        if (state.user) loadLogsByDate(state.selectedDate);
+        else renderTimeline([]);
+      }, 0);
+    });
+
+    if (state.user) await loadLogsByDate(state.selectedDate);
+    else renderTimeline([]);
+  }
+
+  async function login() {
+    if (!supabaseClient) return;
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+      showBox(authMessage, '請輸入 Email 與密碼。', 'error');
+      return;
+    }
+
+    setAuthButtonsDisabled(true);
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    setAuthButtonsDisabled(false);
+
+    if (error) {
+      showBox(authMessage, `登入失敗：${error.message}`, 'error');
+      return;
+    }
+
+    passwordInput.value = '';
+    showBox(authMessage, '登入成功。', 'success');
+  }
+
+  async function signup() {
+    if (!supabaseClient) return;
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) {
+      showBox(authMessage, '請輸入 Email 與密碼。', 'error');
+      return;
+    }
+
+    if (password.length < 6) {
+      showBox(authMessage, '密碼至少需要 6 個字元。', 'error');
+      return;
+    }
+
+    setAuthButtonsDisabled(true);
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectTo }
+    });
+    setAuthButtonsDisabled(false);
+
+    if (error) {
+      showBox(authMessage, `建立帳號失敗：${error.message}`, 'error');
+      return;
+    }
+
+    passwordInput.value = '';
+    if (data?.session) {
+      showBox(authMessage, '帳號已建立並登入。', 'success');
+    } else {
+      showBox(authMessage, '帳號已建立。請到信箱完成 Email 確認後再登入。', 'success', false);
+    }
+  }
+
+  async function logout() {
+    if (!supabaseClient) return;
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      showBox(authMessage, `登出失敗：${error.message}`, 'error');
+      return;
+    }
+    showBox(authMessage, '已登出。', 'success');
+  }
+
+  async function claimLegacyLogs() {
+    if (!supabaseClient || !state.user) return;
+    const code = legacyCodeInput.value.trim();
+    if (!code) {
+      showBox(claimMessage, '請輸入舊 access code。', 'error');
+      return;
+    }
+
+    claimLegacyBtn.disabled = true;
+    const { data, error } = await supabaseClient.rpc('P06ClaimLegacyLogs', { p_access_code: code });
+    claimLegacyBtn.disabled = false;
+
+    if (error) {
+      showBox(claimMessage, `匯入失敗：${error.message}`, 'error');
+      return;
+    }
+
+    legacyCodeInput.value = '';
+    const count = Number(data || 0);
+    showBox(claimMessage, count > 0
+      ? `已成功匯入 ${count} 筆舊足跡到目前帳號。`
+      : '沒有找到尚未歸戶、且符合此 access code 的舊紀錄。',
+      count > 0 ? 'success' : 'error', false);
+    await loadLogsByDate(state.selectedDate);
+  }
+
+  async function loadLogsByDate(dateStr = state.selectedDate) {
+    if (!supabaseClient || !state.user) {
       renderTimeline([]);
-      showMessage('請先輸入代碼。', 'error');
       return;
     }
 
@@ -78,9 +206,9 @@
 
     const { data, error } = await supabaseClient
       .from('TblP06DiaryLogs')
-      .select('id, content, source, entry_date, created_at, access_code')
+      .select('id, content, source, entry_date, created_at, UserID')
       .eq('entry_date', dateStr)
-      .eq('access_code', accessCode)
+      .eq('UserID', state.user.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -89,26 +217,25 @@
     }
 
     renderTimeline(data || []);
-    showMessage(`已載入代碼 ${accessCode} 於 ${dateStr} 的 ${data.length} 筆紀錄。`, 'success');
+    showMessage(`已載入 ${dateStr} 的 ${data.length} 筆紀錄。`, 'success');
   }
 
   function renderTimeline(items) {
     todayCount.textContent = String(items.length);
 
-    if (!state.accessCode) {
-      latestTime.textContent = '尚未設定';
-      timeline.innerHTML = '<div class="empty-box">請先輸入代碼，系統才會顯示對應足跡。</div>';
+    if (!state.user) {
+      latestTime.textContent = '尚未登入';
+      timeline.innerHTML = '<div class="empty-box">請先登入帳號，系統才會顯示您的足跡。</div>';
       return;
     }
 
     if (!items.length) {
       latestTime.textContent = '尚無資料';
-      timeline.innerHTML = `<div class="empty-box">${escapeHtml(formatDateLabel(state.selectedDate))} 在代碼 ${escapeHtml(state.accessCode)} 下還沒有任何足跡。</div>`;
+      timeline.innerHTML = `<div class="empty-box">${escapeHtml(formatDateLabel(state.selectedDate))} 還沒有任何足跡。</div>`;
       return;
     }
 
     latestTime.textContent = formatTime(items[0].created_at);
-
     timeline.innerHTML = items.map((item) => {
       const sourceText = item.source === 'voice' ? '語音輸入' : '鍵盤輸入';
       return `
@@ -124,17 +251,12 @@
   }
 
   async function saveEntry() {
-    if (!supabaseClient) return;
-
-    const content = entryInput.value.trim();
-    const accessCode = normalizeCode(state.accessCode);
-
-    if (!accessCode) {
-      showMessage('請先輸入代碼。', 'error');
-      codeInput.focus();
+    if (!supabaseClient || !state.user) {
+      showMessage('請先登入帳號。', 'error');
       return;
     }
 
+    const content = entryInput.value.trim();
     if (!content) {
       showMessage('請先輸入文字內容。', 'error');
       entryInput.focus();
@@ -142,15 +264,13 @@
     }
 
     saveBtn.disabled = true;
-
     const source = entryInput.dataset.source === 'voice' ? 'voice' : 'keyboard';
 
     const { error } = await supabaseClient
       .from('TblP06DiaryLogs')
-      .insert([{ content, source, access_code: accessCode }]);
+      .insert([{ content, source, UserID: state.user.id }]);
 
     saveBtn.disabled = false;
-
     if (error) {
       showMessage(`寫入失敗：${error.message}`, 'error');
       return;
@@ -158,111 +278,64 @@
 
     entryInput.value = '';
     entryInput.dataset.source = 'keyboard';
-    showMessage(`已成功儲存到代碼 ${accessCode}。`, 'success');
+    showMessage('已成功儲存。', 'success');
     await loadLogsByDate(state.selectedDate);
   }
 
-  function applyCode() {
-    const normalized = normalizeCode(codeInput.value);
-    if (!normalized) {
-      showMessage('代碼不可為空白。', 'error');
-      codeInput.focus();
-      return;
-    }
-
-    state.accessCode = normalized;
-    window.localStorage.setItem(STORAGE_KEY_CODE, normalized);
-    codeInput.value = normalized;
-    updateCurrentCodeText();
-    updateCodeModeUI();
-    entryInput.focus();
-    loadLogsByDate(state.selectedDate);
+  function updateAuthUI() {
+    const signedIn = Boolean(state.user);
+    signedOutPanel.hidden = signedIn;
+    signedInPanel.hidden = !signedIn;
+    legacyCard.hidden = !signedIn;
+    authBadge.textContent = signedIn ? '已登入' : '未登入';
+    authBadge.classList.toggle('active', signedIn);
+    signedInText.textContent = signedIn ? `目前帳號：${state.user.email || state.user.id}` : '';
+    setAuthRequiredDisabled(!signedIn);
   }
 
-  function clearCode() {
-    window.localStorage.removeItem(STORAGE_KEY_CODE);
-    state.accessCode = '';
-    codeInput.value = '';
-    updateCurrentCodeText();
-    updateCodeModeUI();
-    renderTimeline([]);
-    showMessage('已清除目前代碼，請重新輸入。', 'success');
-    codeInput.focus();
-  }
-
-  function updateCurrentCodeText() {
-    if (state.accessCode) {
-      currentCodeText.textContent = `目前代碼：${state.accessCode}`;
-      clearCodeBtn.hidden = false;
-    } else {
-      currentCodeText.textContent = '目前尚未設定代碼';
-      clearCodeBtn.hidden = true;
-    }
-  }
-
-  function updateCodeModeUI() {
-    const hasCode = Boolean(normalizeCode(state.accessCode));
-    setRequiresCodeDisabled(!hasCode);
-
-    if (hasCode) {
-      accessCard.classList.remove('access-attention');
-      accessHint.textContent = '已自動帶入先前保存的代碼。您仍可隨時改用其他代碼。';
-      applyCodeBtn.textContent = '更換代碼';
-    } else {
-      accessCard.classList.add('access-attention');
-      accessHint.textContent = '第一次使用或已清除代碼。請先輸入代碼後再開始記錄。';
-      applyCodeBtn.textContent = '進入系統';
-    }
-  }
-
-  function setRequiresCodeDisabled(disabled) {
-    mainControls.forEach((element) => {
-      element.disabled = disabled;
-    });
+  function setAuthRequiredDisabled(disabled) {
+    authRequiredControls.forEach((element) => { element.disabled = disabled; });
     entryInput.disabled = disabled;
     datePicker.disabled = disabled;
     refreshBtn.disabled = disabled;
     voiceBtn.disabled = disabled;
+  }
+
+  function setAuthButtonsDisabled(disabled) {
+    loginBtn.disabled = disabled;
+    signupBtn.disabled = disabled;
   }
 
   function setGlobalDisabledState(disabled) {
+    loginBtn.disabled = disabled;
+    signupBtn.disabled = disabled;
+    logoutBtn.disabled = disabled;
+    claimLegacyBtn.disabled = disabled;
+    entryInput.disabled = disabled;
+    datePicker.disabled = disabled;
     saveBtn.disabled = disabled;
     refreshBtn.disabled = disabled;
     voiceBtn.disabled = disabled;
-    applyCodeBtn.disabled = disabled;
-    clearCodeBtn.disabled = disabled;
-    entryInput.disabled = disabled;
-    datePicker.disabled = disabled;
-    codeInput.disabled = disabled;
   }
 
-  function getSavedCode() {
-    return normalizeCode(window.localStorage.getItem(STORAGE_KEY_CODE) || '');
-  }
-
-  function normalizeCode(value) {
-    return String(value || '').trim().slice(0, 50);
+  function showBox(element, message, type = 'success', autoHide = true) {
+    element.textContent = message;
+    element.className = `message-box show ${type}`;
+    if (!autoHide) return;
+    window.clearTimeout(element._timer);
+    element._timer = window.setTimeout(() => {
+      element.textContent = '';
+      element.className = 'message-box';
+    }, 3200);
   }
 
   function showMessage(message, type = 'success', autoHide = true) {
-    messageBox.textContent = message;
-    messageBox.className = `message-box show ${type}`;
-
-    if (!autoHide) return;
-
-    window.clearTimeout(showMessage._timer);
-    showMessage._timer = window.setTimeout(() => {
-      messageBox.textContent = '';
-      messageBox.className = 'message-box';
-    }, 2600);
+    showBox(messageBox, message, type, autoHide);
   }
 
   function formatTime(isoString) {
-    try {
-      return taipeiTimeFormatter.format(new Date(isoString));
-    } catch (error) {
-      return isoString;
-    }
+    try { return taipeiTimeFormatter.format(new Date(isoString)); }
+    catch (_error) { return isoString; }
   }
 
   function formatDateLabel(dateStr) {
@@ -273,11 +346,8 @@
   function getTaipeiDateString(date) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Taipei',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(date);
-
     const year = parts.find(p => p.type === 'year')?.value;
     const month = parts.find(p => p.type === 'month')?.value;
     const day = parts.find(p => p.type === 'day')?.value;
@@ -286,8 +356,9 @@
 
   function updateSectionTitle() {
     const todayStr = getTaipeiDateString(new Date());
-    const dateText = state.selectedDate === todayStr ? '今日足跡' : `${formatDateLabel(state.selectedDate)} 足跡`;
-    logSectionTitle.textContent = `${dateText}`;
+    logSectionTitle.textContent = state.selectedDate === todayStr
+      ? '今日足跡'
+      : `${formatDateLabel(state.selectedDate)} 足跡`;
   }
 
   function escapeHtml(value) {
@@ -301,7 +372,6 @@
 
   function initSpeech() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
     if (!SpeechRecognition) {
       voiceBtn.disabled = true;
       voiceStatus.textContent = '此瀏覽器不支援語音輸入';
@@ -322,63 +392,41 @@
     let lastFinalAt = 0;
 
     function normalizeSpeechChunk(text) {
-      return String(text || '')
-        .replace(/[\s\u3000]+/g, '')
-        .trim();
+      return String(text || '').replace(/[\s\u3000]+/g, '').trim();
     }
 
     function dedupeAndCommitFinal(text) {
       const trimmed = String(text || '').trim();
       if (!trimmed) return;
-
       const normalized = normalizeSpeechChunk(trimmed);
       const now = Date.now();
-
-      if (normalized && normalized === lastFinalNormalized && now - lastFinalAt < 2500) {
-        return;
-      }
-
+      if (normalized && normalized === lastFinalNormalized && now - lastFinalAt < 2500) return;
       committedChunks.push(trimmed);
       lastFinalNormalized = normalized;
       lastFinalAt = now;
     }
 
     function buildCombinedText(interimTranscript = '') {
-      const parts = [];
-      const cleanBase = baseText.trim();
-      const cleanCommitted = committedChunks.join(' ').trim();
-      const cleanInterim = String(interimTranscript || '').trim();
-
-      if (cleanBase) parts.push(cleanBase);
-      if (cleanCommitted) parts.push(cleanCommitted);
-      if (cleanInterim) parts.push(cleanInterim);
-
-      return parts.join(' ').trim();
+      return [baseText.trim(), committedChunks.join(' ').trim(), String(interimTranscript || '').trim()]
+        .filter(Boolean).join(' ').trim();
     }
 
     function syncInput(interimTranscript = '') {
       const combined = buildCombinedText(interimTranscript);
       entryInput.value = combined;
-      if (combined) {
-        entryInput.dataset.source = 'voice';
-      }
+      if (combined) entryInput.dataset.source = 'voice';
     }
 
     function startRecognition() {
-      try {
-        recognition.start();
-      } catch (error) {
-        voiceStatus.textContent = '語音啟動失敗，請再按一次';
-      }
+      try { recognition.start(); }
+      catch (_error) { voiceStatus.textContent = '語音啟動失敗，請再按一次'; }
     }
 
     voiceBtn.addEventListener('click', () => {
-      if (!state.accessCode) {
-        showMessage('請先設定代碼，再開始語音輸入。', 'error');
-        codeInput.focus();
+      if (!state.user) {
+        showMessage('請先登入帳號，再開始語音輸入。', 'error');
         return;
       }
-
       if (isListening) {
         manuallyStopped = true;
         isListening = false;
@@ -386,7 +434,6 @@
         recognition.stop();
         return;
       }
-
       baseText = entryInput.value.trim();
       committedChunks = [];
       lastFinalNormalized = '';
@@ -405,28 +452,21 @@
 
     recognition.addEventListener('result', (event) => {
       let interimTranscript = '';
-
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const transcript = event.results[i][0]?.transcript || '';
-        if (event.results[i].isFinal) {
-          dedupeAndCommitFinal(transcript);
-        } else {
-          interimTranscript += transcript;
-        }
+        if (event.results[i].isFinal) dedupeAndCommitFinal(transcript);
+        else interimTranscript += transcript;
       }
-
       syncInput(interimTranscript);
       voiceStatus.textContent = interimTranscript ? '辨識中…' : '已收進文字，繼續等待說話';
     });
 
     recognition.addEventListener('error', (event) => {
       const retryable = ['no-speech', 'aborted', 'audio-capture'].includes(event.error);
-
       if (!manuallyStopped && isListening && retryable) {
         voiceStatus.textContent = '暫時沒有聲音，系統繼續待命…';
         return;
       }
-
       isListening = false;
       voiceBtn.textContent = '🎙️ 開始語音';
       voiceStatus.textContent = `語音錯誤：${event.error}`;
@@ -436,13 +476,10 @@
       if (isListening && !manuallyStopped) {
         voiceStatus.textContent = '等待您下一段說話…';
         window.setTimeout(() => {
-          if (isListening && !manuallyStopped) {
-            startRecognition();
-          }
+          if (isListening && !manuallyStopped) startRecognition();
         }, 350);
         return;
       }
-
       isListening = false;
       voiceBtn.textContent = '🎙️ 開始語音';
       voiceStatus.textContent = '語音已停止';
@@ -450,32 +487,25 @@
     });
   }
 
+  loginBtn.addEventListener('click', login);
+  signupBtn.addEventListener('click', signup);
+  logoutBtn.addEventListener('click', logout);
+  claimLegacyBtn.addEventListener('click', claimLegacyLogs);
   saveBtn.addEventListener('click', saveEntry);
   refreshBtn.addEventListener('click', () => loadLogsByDate(state.selectedDate));
-  applyCodeBtn.addEventListener('click', applyCode);
-  clearCodeBtn.addEventListener('click', clearCode);
-  codeInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      applyCode();
-    }
-  });
   datePicker.addEventListener('change', (event) => {
-    if (event.target.value && state.accessCode) {
-      loadLogsByDate(event.target.value);
-    }
+    if (event.target.value && state.user) loadLogsByDate(event.target.value);
   });
-
+  passwordInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') login();
+  });
+  legacyCodeInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') claimLegacyLogs();
+  });
   entryInput.addEventListener('input', () => {
-    if (!entryInput.value.trim()) {
-      entryInput.dataset.source = 'keyboard';
-    }
+    if (!entryInput.value.trim()) entryInput.dataset.source = 'keyboard';
   });
 
   initSpeech();
-  if (state.accessCode) {
-    loadLogsByDate(state.selectedDate);
-  } else {
-    renderTimeline([]);
-  }
+  initAuth();
 })();

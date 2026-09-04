@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>P06足跡</title>
-  <meta name="description" content="P06足跡：隨手記下想法、行動與當下的時間。" />
+  <meta name="description" content="P06足跡：登入後長期保存自己的文字足跡。" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Zen+Old+Mincho:wght@400;700&display=swap" rel="stylesheet">
@@ -21,20 +21,56 @@
     </header>
 
     <main class="container">
-      <section id="accessCard" class="card access-card">
+      <section id="authCard" class="card auth-card">
+        <div class="section-title-wrap row-between auth-heading">
+          <div>
+            <h2>我的帳號</h2>
+            <p class="small-muted">登入狀態會保存在這個瀏覽器；一般情況下，下次開啟不必重新輸入密碼。</p>
+          </div>
+          <span id="authBadge" class="auth-badge">未登入</span>
+        </div>
+
+        <div id="signedOutPanel">
+          <div class="auth-grid">
+            <div>
+              <label for="emailInput" class="label">Email</label>
+              <input id="emailInput" type="email" autocomplete="email" placeholder="name@example.com" />
+            </div>
+            <div>
+              <label for="passwordInput" class="label">密碼</label>
+              <input id="passwordInput" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 個字元" />
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="loginBtn" class="btn primary" type="button">登入</button>
+            <button id="signupBtn" class="btn secondary" type="button">建立帳號</button>
+          </div>
+          <p class="small-muted auth-note">若 Supabase 啟用了 Email confirmation，註冊後需先到信箱完成確認。</p>
+        </div>
+
+        <div id="signedInPanel" hidden>
+          <p id="signedInText" class="signed-in-text"></p>
+          <div class="toolbar">
+            <button id="logoutBtn" class="btn ghost" type="button">登出</button>
+          </div>
+        </div>
+
+        <div id="authMessage" class="message-box" aria-live="polite"></div>
+      </section>
+
+      <section id="legacyCard" class="card legacy-card" hidden>
         <div class="section-title-wrap">
-          <h2>進入代碼</h2>
-          <p id="accessHint" class="small-muted">目前是輕量分流機制。輸入相同代碼，才能看到相同代碼的紀錄。</p>
+          <h2>匯入舊足跡</h2>
+          <p class="small-muted">若您以前使用 access code，登入後可在此把尚未歸戶的舊紀錄一次綁定到目前帳號。完成後，日常使用不再需要 access code。</p>
         </div>
         <div class="access-row">
           <div class="access-field">
-            <label for="codeInput" class="label">代碼</label>
-            <input id="codeInput" type="text" maxlength="50" placeholder="例如：teacher01" autocomplete="off" />
+            <label for="legacyCodeInput" class="label">舊 access code</label>
+            <input id="legacyCodeInput" type="text" maxlength="50" placeholder="輸入以前使用的代碼" autocomplete="off" />
           </div>
-          <button id="applyCodeBtn" class="btn primary" type="button">進入系統</button>
-          <button id="clearCodeBtn" class="btn ghost" type="button" hidden>清除代碼</button>
+          <button id="claimLegacyBtn" class="btn secondary" type="button">匯入舊紀錄</button>
         </div>
-        <p id="currentCodeText" class="small-muted current-code"></p>
+        <div id="claimMessage" class="message-box" aria-live="polite"></div>
       </section>
 
       <section class="card input-card">
@@ -44,12 +80,12 @@
         </div>
 
         <label for="entryInput" class="label">想法 / 行動紀錄</label>
-        <textarea id="entryInput" data-requires-code="true" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
+        <textarea id="entryInput" data-requires-auth="true" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
 
         <div class="toolbar">
-          <button id="saveBtn" class="btn primary" data-requires-code="true">送出記錄</button>
-          <button id="voiceBtn" class="btn secondary" type="button" data-requires-code="true">🎙️ 開始語音</button>
-          <button id="refreshBtn" class="btn ghost" type="button" data-requires-code="true">重新整理</button>
+          <button id="saveBtn" class="btn primary" data-requires-auth="true">送出記錄</button>
+          <button id="voiceBtn" class="btn secondary" type="button" data-requires-auth="true">🎙️ 開始語音</button>
+          <button id="refreshBtn" class="btn ghost" type="button" data-requires-auth="true">重新整理</button>
           <span id="voiceStatus" class="status-text"></span>
         </div>
 
@@ -71,11 +107,11 @@
         <div class="section-title-wrap row-between">
           <div>
             <h2 id="logSectionTitle">今日足跡</h2>
-            <p class="small-muted">依時間倒序顯示</p>
+            <p class="small-muted">只顯示目前登入帳號自己的紀錄，依時間倒序。</p>
           </div>
           <div class="date-tools">
             <label for="datePicker" class="date-label">選擇日期</label>
-            <input id="datePicker" class="date-input" type="date" data-requires-code="true" />
+            <input id="datePicker" class="date-input" type="date" data-requires-auth="true" />
           </div>
         </div>
         <div id="timeline" class="timeline"></div>
