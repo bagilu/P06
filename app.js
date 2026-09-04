@@ -77,7 +77,7 @@
     showMessage(`載入 ${dateStr} 紀錄中…`, 'success', false);
 
     const { data, error } = await supabaseClient
-      .from('tblp06_diary_logs')
+      .from('TblP06DiaryLogs')
       .select('id, content, source, entry_date, created_at, access_code')
       .eq('entry_date', dateStr)
       .eq('access_code', accessCode)
@@ -146,7 +146,7 @@
     const source = entryInput.dataset.source === 'voice' ? 'voice' : 'keyboard';
 
     const { error } = await supabaseClient
-      .from('tblp06_diary_logs')
+      .from('TblP06DiaryLogs')
       .insert([{ content, source, access_code: accessCode }]);
 
     saveBtn.disabled = false;

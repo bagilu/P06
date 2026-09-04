@@ -1,116 +1,73 @@
-# README_SYSTEM.md
+# P06 足跡 — V0.5 Naming Standardization
 
-# P06 足跡
+P06「足跡」是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統，用於隨手記下當下正在做的事與想法，並自動保存時間形成可回看的文字足跡。
 
-P06足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。用途是隨手記下當下正在做的事、腦中浮現的想法，並讓系統自動記錄時間，形成可回看的文字足跡。
+## 一、本版定位
 
----
+本版以 V0.4 穩定版為基礎，只做 **P06 資料庫物件命名一致化**，不加入帳號功能，也不改變既有操作流程。
 
-## 一、目前版本重點
+既有功能均保留：
 
-本版本為 v4，包含以下功能：
+1. 文字寫入 Supabase
+2. 自動記錄建立時間與台北日期
+3. 依日期查看足跡
+4. 瀏覽器語音辨識輸入
+5. 語音 session 中斷後自動續聽
+6. `access_code` 資料分流
+7. `access_code` 儲存於 localStorage
+8. 可更換或清除代碼
 
-1. 文字輸入後可直接寫入 Supabase
-2. 每筆資料自動附上建立時間與台北日期
-3. 可選擇日期查看過去足跡
-4. 支援瀏覽器語音辨識輸入
-5. 語音辨識中斷後，會自動重新啟動等待下一段說話
-6. 新增 access_code 代碼輸入，用於資料分流
-7. 首次使用若尚未設定代碼，系統會先要求輸入代碼
-8. 曾輸入過的代碼會保存在瀏覽器 localStorage，下次開啟可直接載入
-9. 可隨時更換代碼或清除代碼
+## 二、本版資料庫命名
 
----
+主要資料表正式統一為：
 
-## 二、重要說明
+`public."TblP06DiaryLogs"`
 
-### 1. access_code 不是正式安全機制
+欄位保持不變：
 
-目前 access_code 只是前端分流條件，不是完整的權限控管，也不是帳號登入系統。
-
-也就是說：
-- 平常使用上，可用不同代碼區分不同資料
-- 但若有人知道 Supabase 結構並直接呼叫 API，理論上仍可能讀取資料
-
-因此本版適合：
-- 個人使用
-- 測試用途
-- 暫不公開的原型系統
-
-若未來要正式保護隱私，建議升級為：
-- Supabase Auth 登入
-- 或 Edge Function 代理查詢與寫入
-- 或兩者並用
-
-### 2. 舊資料處理
-
-若您先前已把舊資料補成 `default`，仍可輸入 `default` 看到舊資料。
-
-本版不需要再修改資料表結構，也不需要重跑 schema.sql。
-
----
-
-## 三、主要資料表
-
-### `public.tblp06_diary_logs`
-
-欄位：
 - `id`：UUID 主鍵
 - `content`：文字內容
-- `source`：輸入來源，`keyboard` 或 `voice`
-- `access_code`：代碼分流欄位
+- `source`：`keyboard` 或 `voice`
+- `access_code`：輕量分流代碼
 - `entry_date`：台北日期
 - `created_at`：UTC 建立時間
 
----
+P06 View 統一為：
 
-## 四、前端檔案
+`public."VwP06TodayLogs"`
 
-- `index.html`：主畫面
-- `styles.css`：介面樣式（咖啡－米色舊日式風格）
-- `app.js`：主要功能邏輯
-- `config.example.js`：範例設定檔
-- `config.js`：實際設定檔
-- `schema.sql`：Supabase SQL
+## 三、既有資料安全
 
----
+本版採 PostgreSQL `RENAME`，不是建立新 table 後搬資料。
 
-## 五、語音辨識修正
+因此既有歷史資料仍留在同一個 PostgreSQL relation 中；migration 不會 COPY、DELETE 或重新 INSERT 歷史資料。
 
-### 本版修正內容
+## 四、SQL 安全原則
 
-前一版在某些情況下，語音辨識結果可能出現連續重複，例如：
+本版不再提供舊式的整包 `schema.sql`，避免誤執行不必要的 schema / policy 建置。
 
-`系統測試 系統測試`
+請使用：
 
-本版已改為：
-- 將最終辨識結果拆成獨立片段管理
-- 對短時間內重複出現的相同 final transcript 做去重
-- 保留 interim 顯示，但不再重複累加到 committed 文字中
+- `Database/01_P06_NamingMigration.sql`
+- `Database/99_P06_HealthCheck.sql`
 
-此修正特別針對 Android 手機上語音 session 自動重啟時，可能重送前一段 final transcript 的情況。
+本次 SQL 僅操作 P06 自己的 table/index/view，且：
 
----
+- 不使用 `GRANT`
+- 不使用 `REVOKE`
+- 不修改整個 `public` schema 權限
+- 不碰其他 P 專案 table / view / policy / function
+- 不重建 P06 既有 RLS Policy
 
-## 六、部署方式
+## 五、部署順序
 
-1. 在 Supabase SQL Editor 執行 `schema.sql`
-2. 編輯 `config.js`，填入：
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-3. 將整個資料夾上傳到 GitHub Pages 專案
-4. 開啟網站後：
-   - 若瀏覽器已有保存的代碼，系統會自動帶入並直接載入
-   - 若尚未保存代碼，請先輸入後再開始使用
+1. 先記錄舊表筆數：`SELECT count(*) FROM public.tblp06_diary_logs;`
+2. 執行 `Database/01_P06_NamingMigration.sql`
+3. 執行 `Database/99_P06_HealthCheck.sql`
+4. 確認筆數與既有 Policy 正常
+5. 將本版前端部署至 GitHub Pages
+6. 以既有 access code 實際測試讀取及新增一筆資料
 
----
+## 六、帳號功能
 
-## 七、下一步可擴充方向
-
-1. 關鍵字搜尋
-2. 每日統計圖
-3. 匯出 CSV
-4. localStorage 暫存失敗補送
-5. 正式登入與權限控管
-6. Edge Function 安全查詢版本
-
+本版暫不加入正式帳號、Supabase Auth、Passkey 或指紋登入。這些功能留待下一階段，待本次命名遷移穩定後再進行。
