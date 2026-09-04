@@ -176,7 +176,7 @@
     }
 
     claimLegacyBtn.disabled = true;
-    const { data, error } = await supabaseClient.rpc('P06ClaimLegacyLogs', { p_access_code: code });
+    const { data, error } = await supabaseClient.rpc('p06_claim_legacy_logs', { p_access_code: code });
     claimLegacyBtn.disabled = false;
 
     if (error) {

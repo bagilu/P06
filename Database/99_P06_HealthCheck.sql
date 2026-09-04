@@ -7,7 +7,7 @@ select
   to_regclass('public."IdxP06DiaryLogsEntryDate"') as idx_entry_date,
   to_regclass('public."IdxP06DiaryLogsAccessCodeEntryDate"') as idx_legacy_code,
   to_regclass('public."IdxP06DiaryLogsUserEntryDate"') as idx_user_entry_date,
-  to_regprocedure('public."P06ClaimLegacyLogs"(text)') as claim_function;
+  to_regprocedure('public.p06_claim_legacy_logs(text)') as claim_function;
 
 select
   count(*) as total_rows,

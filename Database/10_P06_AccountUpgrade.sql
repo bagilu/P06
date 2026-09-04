@@ -67,7 +67,7 @@ revoke all on table public."VwP06TodayLogs" from authenticated;
 
 -- 6) Legacy claim function.
 -- A logged-in user can claim only rows that are still unowned and whose legacy access_code matches.
-create or replace function public."P06ClaimLegacyLogs"(p_access_code text)
+create or replace function public.p06_claim_legacy_logs(p_access_code text)
 returns integer
 language plpgsql
 security definer
@@ -96,9 +96,12 @@ begin
 end;
 $$;
 
-revoke all on function public."P06ClaimLegacyLogs"(text) from public;
-revoke all on function public."P06ClaimLegacyLogs"(text) from anon;
-grant execute on function public."P06ClaimLegacyLogs"(text) to authenticated;
+revoke all on function public.p06_claim_legacy_logs(text) from public;
+revoke all on function public.p06_claim_legacy_logs(text) from anon;
+grant execute on function public.p06_claim_legacy_logs(text) to authenticated;
+
+-- Refresh PostgREST schema cache so the new RPC is discoverable immediately.
+notify pgrst, 'reload schema';
 
 commit;
 

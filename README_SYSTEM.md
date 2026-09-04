@@ -55,3 +55,14 @@ P06 足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌
 - 只在 P06 主表建立對 `auth.users(id)` 的 foreign key。
 
 `90_P06_Permissions.sql` 也只修 P06 主表與 `P06ClaimLegacyLogs` function 的權限。
+
+
+---
+
+## V0.6.1 RPC 修正
+
+若 V0.6 已完成帳號升級，但匯入舊足跡出現 `Could not find the function ... in the schema cache`，請只執行：
+
+`Database/11_P06_RPCFunctionFix.sql`
+
+本修正將 RPC 改為 `p06_claim_legacy_logs`，並要求 PostgREST 重新載入 schema cache。SQL 只處理 P06 的 legacy-claim function，不修改其他專案權限。
