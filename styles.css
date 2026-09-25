@@ -579,3 +579,42 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* V0.7 SDS v3.1 auth alignment */
+.password-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.password-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.btn.password-toggle {
+  width: auto;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent-deep);
+  padding-inline: 14px;
+}
+.account-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 14px;
+}
+.account-links a {
+  color: var(--accent-deep);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+@media (max-width: 680px) {
+  .password-row {
+    flex-direction: column;
+  }
+  .btn.password-toggle {
+    width: 100%;
+  }
+}

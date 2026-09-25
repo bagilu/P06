@@ -1,50 +1,39 @@
-# P06 Database — V0.6 Account Upgrade
+# P06 Database — V0.7 SDS v3.1
 
-本資料夾只處理 P06「足跡」自己的資料庫物件。帳號身分由 Supabase Auth 提供，但本版**不建立 auth.users trigger、不修改 auth.users 權限、不修改其他 P 專案**。
+本資料夾只處理 P06「足跡」自己的資料庫物件。帳號身分由 shared Supabase Auth 提供；P06 不建立第二套帳密、不建立 auth.users trigger，也不修改其他 P 專案。
 
-## 從 V0.5.1 升級的執行順序
+## 現行資料模型
 
-1. 確認 V0.5.1 已可正常寫入。
-2. 執行 `10_P06_AccountUpgrade.sql`。
-3. 執行 `99_P06_HealthCheck.sql`。
-4. 部署 V0.6 前端。
-5. 註冊／登入帳號。
-6. 如有舊 access code，在登入後使用「匯入舊足跡」一次性歸戶。
-
-`01_P06_NamingMigration.sql` 是更早版本才需要的命名遷移；若目前 table 已是 `"TblP06DiaryLogs"`，不必重跑。
-
-## V0.6 資料模型
-
-`public."TblP06DiaryLogs"` 新增：
+主表：`public."TblP06DiaryLogs"`
 
 - `"UserID" uuid NULL REFERENCES auth.users(id)`
+- 新紀錄以 `UserID = auth.uid()` 歸屬登入者。
+- 舊資料可維持 `UserID IS NULL`，透過 `p06_claim_legacy_logs(text)` 一次性歸戶。
 
-既有舊資料先維持 `UserID = NULL`；輸入舊 access code 並執行歸戶後，符合 code 且尚未歸戶的資料會綁到目前登入帳號。
+## Auth / Authorization
 
-新帳號模式的紀錄：
+P06 前端只做 sign-in。註冊、Email 驗證、forgot/reset/change password、帳號基本資料由 P130 Account Center 負責。
 
-- 直接以 `UserID = auth.uid()` 區分使用者。
-- `access_code` 不再是新紀錄的登入或安全機制。
+P06 RLS / RPC 只負責 P06 資料授權；不得以 shared Auth 取代專案自己的資料權限。
 
-## RLS
+## Permissions
 
-V0.6 移除 P06 舊的匿名 public read / insert policy，改為：
+`90_P06_Permissions.sql` 只修：
 
-- authenticated user 只能 SELECT 自己 `UserID` 的資料。
-- authenticated user 只能 INSERT `UserID = auth.uid()` 的資料。
+- `public."TblP06DiaryLogs"`
+- `public."VwP06TodayLogs"`
+- `public.p06_claim_legacy_logs(text)`
 
-舊的未歸戶資料 (`UserID IS NULL`) 不會經一般 SELECT 暴露；只能透過 P06 專用 claim function 依舊 access code 歸戶。
+沒有任何 schema-wide GRANT/REVOKE、ALTER DEFAULT PRIVILEGES 或其他 Pxx 物件。
 
-## 權限安全範圍
+## Health Check
 
-本版 SQL **沒有**：
+`99_P06_HealthCheck.sql` 為唯讀，檢查 P06 table、UserID、index、RLS、policy、grants、RPC 與 SECURITY DEFINER 狀態。
 
-- `GRANT ... ON ALL TABLES`
-- `REVOKE ... ON ALL TABLES`
-- `ALTER DEFAULT PRIVILEGES`
-- `GRANT/REVOKE ON SCHEMA public`
-- 其他 `TblPxx...` 物件操作
-- auth.users trigger
-- auth schema 權限修改
+## 舊 migration
 
-只有 P06 table / P06 policy / P06 index / P06 function 的精確物件級操作。
+- `01_P06_NamingMigration.sql`：舊命名遷移。
+- `10_P06_AccountUpgrade.sql`：V0.6 帳號升級。
+- `11_P06_RPCFunctionFix.sql`：legacy claim RPC 名稱修正。
+
+已完成上述 migration 的正式資料庫不需要因 V0.7 前端 Auth 分工調整而重跑舊 migration。

@@ -1,4 +1,4 @@
--- P06 足跡 / V0.6 / Read-only Health Check
+-- P06 足跡 / V0.7 / Read-only Health Check
 -- Queries P06 objects only. No writes and no permission changes.
 
 select
@@ -8,6 +8,15 @@ select
   to_regclass('public."IdxP06DiaryLogsAccessCodeEntryDate"') as idx_legacy_code,
   to_regclass('public."IdxP06DiaryLogsUserEntryDate"') as idx_user_entry_date,
   to_regprocedure('public.p06_claim_legacy_logs(text)') as claim_function;
+
+select
+  column_name,
+  data_type,
+  is_nullable
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'TblP06DiaryLogs'
+  and column_name = 'UserID';
 
 select
   count(*) as total_rows,
@@ -40,4 +49,14 @@ select
   has_table_privilege('anon', 'public."TblP06DiaryLogs"', 'SELECT') as anon_can_select_expected_false,
   has_table_privilege('anon', 'public."TblP06DiaryLogs"', 'INSERT') as anon_can_insert_expected_false,
   has_table_privilege('authenticated', 'public."TblP06DiaryLogs"', 'SELECT') as authenticated_can_select_expected_true,
-  has_table_privilege('authenticated', 'public."TblP06DiaryLogs"', 'INSERT') as authenticated_can_insert_expected_true;
+  has_table_privilege('authenticated', 'public."TblP06DiaryLogs"', 'INSERT') as authenticated_can_insert_expected_true,
+  has_function_privilege('authenticated', 'public.p06_claim_legacy_logs(text)', 'EXECUTE') as authenticated_can_claim_expected_true;
+
+select
+  p.oid::regprocedure as function_name,
+  p.prosecdef as security_definer,
+  p.proconfig as function_settings
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'p06_claim_legacy_logs';

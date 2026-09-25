@@ -38,14 +38,22 @@
             </div>
             <div>
               <label for="passwordInput" class="label">密碼</label>
-              <input id="passwordInput" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 個字元" />
+              <div class="password-row">
+                <input id="passwordInput" type="password" autocomplete="current-password" placeholder="請輸入密碼" />
+                <button id="togglePasswordBtn" class="btn password-toggle" type="button" aria-controls="passwordInput" aria-pressed="false">顯示密碼</button>
+              </div>
             </div>
           </div>
           <div class="toolbar">
             <button id="loginBtn" class="btn primary" type="button">登入</button>
-            <button id="signupBtn" class="btn secondary" type="button">建立帳號</button>
+            
           </div>
-          <p class="small-muted auth-note">若 Supabase 啟用了 Email confirmation，註冊後需先到信箱完成確認。</p>
+          <div class="account-links" aria-label="帳號相關連結">
+            <a href="https://bagilu.github.io/P130/" target="_blank" rel="noopener">還沒有帳號？前往 P130 註冊</a>
+            <a href="https://bagilu.github.io/P130/forgot-password.html" target="_blank" rel="noopener">忘記密碼？前往 P130</a>
+            <a href="https://bagilu.github.io/P130/" target="_blank" rel="noopener">帳號設定 → P130</a>
+          </div>
+          <p class="small-muted auth-note">P06 只負責登入；註冊、Email 驗證、密碼與帳號資料由 P130 Account Center 統一管理。</p>
         </div>
 
         <div id="signedInPanel" hidden>
@@ -60,7 +68,7 @@
 
       <section id="legacyCard" class="card legacy-card" hidden>
         <div class="section-title-wrap">
-          <h2>匯入舊足跡</h2>
+          <h2>資料工具：匯入舊足跡</h2>
           <p class="small-muted">若您以前使用 access code，登入後可在此把尚未歸戶的舊紀錄一次綁定到目前帳號。完成後，日常使用不再需要 access code。</p>
         </div>
         <div class="access-row">

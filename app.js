@@ -1,7 +1,7 @@
 (function () {
   const SUPABASE_URL = window.P06_CONFIG?.SUPABASE_URL;
   const SUPABASE_ANON_KEY = window.P06_CONFIG?.SUPABASE_ANON_KEY;
-  const AUTH_STORAGE_KEY = 'p06-auth-token';
+  const AUTH_STORAGE_KEY = 'P06-auth';
 
   const entryInput = document.getElementById('entryInput');
   const saveBtn = document.getElementById('saveBtn');
@@ -19,8 +19,8 @@
   const emailInput = document.getElementById('emailInput');
   const passwordInput = document.getElementById('passwordInput');
   const loginBtn = document.getElementById('loginBtn');
-  const signupBtn = document.getElementById('signupBtn');
   const logoutBtn = document.getElementById('logoutBtn');
+  const togglePasswordBtn = document.getElementById('togglePasswordBtn');
   const signedOutPanel = document.getElementById('signedOutPanel');
   const signedInPanel = document.getElementById('signedInPanel');
   const signedInText = document.getElementById('signedInText');
@@ -118,43 +118,6 @@
 
     passwordInput.value = '';
     showBox(authMessage, '登入成功。', 'success');
-  }
-
-  async function signup() {
-    if (!supabaseClient) return;
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
-
-    if (!email || !password) {
-      showBox(authMessage, '請輸入 Email 與密碼。', 'error');
-      return;
-    }
-
-    if (password.length < 6) {
-      showBox(authMessage, '密碼至少需要 6 個字元。', 'error');
-      return;
-    }
-
-    setAuthButtonsDisabled(true);
-    const redirectTo = window.location.origin + window.location.pathname;
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: redirectTo }
-    });
-    setAuthButtonsDisabled(false);
-
-    if (error) {
-      showBox(authMessage, `建立帳號失敗：${error.message}`, 'error');
-      return;
-    }
-
-    passwordInput.value = '';
-    if (data?.session) {
-      showBox(authMessage, '帳號已建立並登入。', 'success');
-    } else {
-      showBox(authMessage, '帳號已建立。請到信箱完成 Email 確認後再登入。', 'success', false);
-    }
   }
 
   async function logout() {
@@ -303,12 +266,10 @@
 
   function setAuthButtonsDisabled(disabled) {
     loginBtn.disabled = disabled;
-    signupBtn.disabled = disabled;
   }
 
   function setGlobalDisabledState(disabled) {
     loginBtn.disabled = disabled;
-    signupBtn.disabled = disabled;
     logoutBtn.disabled = disabled;
     claimLegacyBtn.disabled = disabled;
     entryInput.disabled = disabled;
@@ -488,8 +449,20 @@
   }
 
   loginBtn.addEventListener('click', login);
-  signupBtn.addEventListener('click', signup);
   logoutBtn.addEventListener('click', logout);
+  togglePasswordBtn?.addEventListener('click', () => {
+    const show = passwordInput.type === 'password';
+    passwordInput.type = show ? 'text' : 'password';
+    togglePasswordBtn.textContent = show ? '隱藏密碼' : '顯示密碼';
+    togglePasswordBtn.setAttribute('aria-pressed', String(show));
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && togglePasswordBtn) {
+      passwordInput.type = 'password';
+      togglePasswordBtn.textContent = '顯示密碼';
+      togglePasswordBtn.setAttribute('aria-pressed', 'false');
+    }
+  });
   claimLegacyBtn.addEventListener('click', claimLegacyLogs);
   saveBtn.addEventListener('click', saveEntry);
   refreshBtn.addEventListener('click', () => loadLogsByDate(state.selectedDate));

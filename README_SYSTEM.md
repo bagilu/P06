@@ -1,68 +1,57 @@
-# P06 足跡 — V0.6 Account Edition
+# P06 足跡 — V0.7 SDS v3.1 Auth Alignment
 
-P06 足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。本版由 access-code 分流正式升級為 Supabase Auth 帳號模式。
+P06 足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。本版以 V0.6.x 帳號版為基礎，依 SBI-P-SDS v3.1 修正登入與帳號生命週期分工。
 
-## 本版重點
+## V0.7 重點
 
-1. Email + password 註冊／登入。
-2. Supabase session 使用獨立 `storageKey = p06-auth-token`，避免與其他 P 專案 Auth session 混用。
-3. `persistSession: true` + `autoRefreshToken: true`：同一手機／瀏覽器一般不需每次重新登入。
-4. 新紀錄直接綁定 Supabase `auth.uid()`。
-5. RLS 改為「登入者只看得到自己的紀錄」。
-6. 舊 access-code 資料保留，登入後可用「匯入舊足跡」一次歸戶。
-7. 保留原 V0.4/V0.5.1 的語音輸入與重複辨識去重機制。
-8. 尚未加入 Passkey / 指紋；這會留到下一階段。
+1. P06 保留自己的 Email + password 登入頁，使用 Supabase `signInWithPassword()`。
+2. P06 不再提供註冊功能；註冊、Email 驗證、忘記／重設／修改密碼、帳號基本資料統一由 P130 Account Center 處理。
+3. 登入頁提供 P130 註冊、忘記密碼、帳號設定連結。
+4. Auth session 使用 P06 專屬 `storageKey = P06-auth`。
+5. 保留 `persistSession: true` 與 `autoRefreshToken: true`，同一手機／瀏覽器一般不需每次重新登入。
+6. 新紀錄以 `auth.uid()` / `UserID` 綁定使用者；RLS 仍限制登入者只能讀寫自己的 P06 紀錄。
+7. 舊 access code 僅保留為 legacy data migration 工具，不再是日常登入或授權機制。
+8. 加入「顯示密碼」按鈕；切離頁面時自動恢復隱藏。
+9. 不新增 P06 自有帳密資料表，不建立 auth.users trigger。
+10. Passkey／指紋尚未在 P06 個別實作；如未來需要，應由 shared Auth / P130 層級統一規劃。
 
-## 升級方式（由 V0.5.1）
+## P130
 
-1. Supabase SQL Editor 執行 `Database/10_P06_AccountUpgrade.sql`。
-2. 執行 `Database/99_P06_HealthCheck.sql`。
-3. 在 Supabase Authentication → URL Configuration 確認目前 GitHub Pages 網址已列入 Redirect URLs。
-4. 部署新版 GitHub Pages。
-5. 建立帳號或登入。
-6. 若要取回舊資料，登入後輸入以前的 access code，執行「匯入舊紀錄」。
+- Account Center: https://bagilu.github.io/P130/
+- Forgot password: https://bagilu.github.io/P130/forgot-password.html
 
-## Email confirmation
-
-若 Supabase Authentication 開啟 Confirm email：
-
-- 使用者註冊後需先收信確認。
-- Redirect URL 必須允許目前 P06 GitHub Pages URL。
-
-若目前只供自己測試，也可以暫時使用 Supabase Dashboard 已建立／已確認的使用者來測試，不需要改動其他專案資料表。
+P130 與 P06 使用同一個 Supabase Project / shared Auth；P130 管理帳號生命週期，P06 管理自己的資料與 authorization。
 
 ## 資料庫
 
 主表：`public."TblP06DiaryLogs"`
 
-新增欄位：
+帳號欄位：
 
 - `"UserID" uuid NULL REFERENCES auth.users(id)`
 
-舊紀錄：`UserID IS NULL`，直到用舊 access code 歸戶。
+舊紀錄可維持 `UserID IS NULL`，直到登入後透過 `p06_claim_legacy_logs(text)` 歸戶。
 
-新紀錄：`UserID = auth.uid()`。
+## SQL 安全範圍
 
-## 安全與 P-SDS
+P06 SQL 僅能操作 P06 自己的物件：
 
-本版 SQL 嚴格限定 P06：
+- `TblP06...`
+- `VwP06...`
+- `p06_...` / P06 專屬 function、policy、index
 
-- 不使用 schema-wide GRANT/REVOKE。
-- 不使用 `ALTER DEFAULT PRIVILEGES`。
-- 不操作其他 `TblPxx...`。
-- 不建立 `auth.users` trigger。
-- 不修改 `auth` schema 權限。
-- 只在 P06 主表建立對 `auth.users(id)` 的 foreign key。
+禁止：
 
-`90_P06_Permissions.sql` 也只修 P06 主表與 `P06ClaimLegacyLogs` function 的權限。
+- schema-wide `GRANT / REVOKE ... ON ALL TABLES`
+- `ALTER DEFAULT PRIVILEGES`
+- `GRANT ALL / REVOKE ALL ON SCHEMA public`
+- 修改任何其他 P 專案物件
+- 使用 service role key 於前端
 
+## 部署設定
 
----
+正式 GitHub Pages 仍使用 `config.js`。範本檔為 `config-sample.js`；修改版本時不得以範本覆蓋正式 `config.js`。
 
-## V0.6.1 RPC 修正
+## 注意
 
-若 V0.6 已完成帳號升級，但匯入舊足跡出現 `Could not find the function ... in the schema cache`，請只執行：
-
-`Database/11_P06_RPCFunctionFix.sql`
-
-本修正將 RPC 改為 `p06_claim_legacy_logs`，並要求 PostgREST 重新載入 schema cache。SQL 只處理 P06 的 legacy-claim function，不修改其他專案權限。
+V0.7 將 storageKey 從舊版 `p06-auth-token` 改為 `P06-auth`。既有使用者升級後可能需要重新登入一次；之後 session 會以新的 P06 專屬 key 長期保存。
