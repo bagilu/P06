@@ -2,7 +2,9 @@
   const SUPABASE_URL = window.P06_CONFIG?.SUPABASE_URL;
   const SUPABASE_ANON_KEY = window.P06_CONFIG?.SUPABASE_ANON_KEY;
   const AUTH_STORAGE_KEY = 'P06-auth';
+  const PAGE_SIZE = 10;
 
+  const mainContainer = document.getElementById('mainContainer');
   const entryInput = document.getElementById('entryInput');
   const saveBtn = document.getElementById('saveBtn');
   const refreshBtn = document.getElementById('refreshBtn');
@@ -14,8 +16,14 @@
   const latestTime = document.getElementById('latestTime');
   const todayLabel = document.getElementById('todayLabel');
   const datePicker = document.getElementById('datePicker');
+  const latestBtn = document.getElementById('latestBtn');
+  const newerBtn = document.getElementById('newerBtn');
+  const olderBtn = document.getElementById('olderBtn');
+  const pageStatus = document.getElementById('pageStatus');
   const logSectionTitle = document.getElementById('logSectionTitle');
+  const logHint = document.getElementById('logHint');
 
+  const authCard = document.getElementById('authCard');
   const emailInput = document.getElementById('emailInput');
   const passwordInput = document.getElementById('passwordInput');
   const loginBtn = document.getElementById('loginBtn');
@@ -39,8 +47,11 @@
     day: '2-digit'
   });
 
-  const taipeiTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
+  const taipeiDateTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
     timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -48,12 +59,14 @@
   });
 
   const state = {
-    selectedDate: getTaipeiDateString(new Date()),
-    user: null
+    selectedDate: '',
+    pageIndex: 0,
+    user: null,
+    hasOlder: false
   };
 
   todayLabel.textContent = `今日日期：${taipeiDateFormatter.format(new Date())}`;
-  datePicker.value = state.selectedDate;
+  datePicker.value = '';
   updateSectionTitle();
   updateAuthUI();
 
@@ -82,18 +95,20 @@
     }
 
     state.user = data?.session?.user || null;
+    resetTimelineState();
     updateAuthUI();
 
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       state.user = session?.user || null;
+      resetTimelineState();
       updateAuthUI();
       window.setTimeout(() => {
-        if (state.user) loadLogsByDate(state.selectedDate);
+        if (state.user) loadTimeline();
         else renderTimeline([]);
       }, 0);
     });
 
-    if (state.user) await loadLogsByDate(state.selectedDate);
+    if (state.user) await loadTimeline();
     else renderTimeline([]);
   }
 
@@ -117,6 +132,7 @@
     }
 
     passwordInput.value = '';
+    hidePassword();
     showBox(authMessage, '登入成功。', 'success');
   }
 
@@ -149,38 +165,77 @@
 
     legacyCodeInput.value = '';
     const count = Number(data || 0);
-    showBox(claimMessage, count > 0
-      ? `已成功匯入 ${count} 筆舊足跡到目前帳號。`
-      : '沒有找到尚未歸戶、且符合此 access code 的舊紀錄。',
-      count > 0 ? 'success' : 'error', false);
-    await loadLogsByDate(state.selectedDate);
+    showBox(
+      claimMessage,
+      count > 0
+        ? `已成功匯入 ${count} 筆舊足跡到目前帳號。`
+        : '目前沒有可匯入的舊紀錄；可能此 access code 的紀錄已完成歸戶。',
+      count > 0 ? 'success' : 'success',
+      false
+    );
+    resetTimelineState();
+    await loadTimeline();
   }
 
-  async function loadLogsByDate(dateStr = state.selectedDate) {
+  function resetTimelineState() {
+    state.selectedDate = '';
+    state.pageIndex = 0;
+    state.hasOlder = false;
+    datePicker.value = '';
+    updateSectionTitle();
+  }
+
+  function selectedDateEndIso() {
+    if (!state.selectedDate) return null;
+    return new Date(`${state.selectedDate}T23:59:59.999+08:00`).toISOString();
+  }
+
+  async function loadTimeline() {
     if (!supabaseClient || !state.user) {
       renderTimeline([]);
       return;
     }
 
-    state.selectedDate = dateStr;
-    datePicker.value = dateStr;
     updateSectionTitle();
-    showMessage(`載入 ${dateStr} 紀錄中…`, 'success', false);
+    showMessage('載入足跡中…', 'success', false);
 
-    const { data, error } = await supabaseClient
+    const from = state.pageIndex * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+
+    let query = supabaseClient
       .from('TblP06DiaryLogs')
       .select('id, content, source, entry_date, created_at, UserID')
-      .eq('entry_date', dateStr)
       .eq('UserID', state.user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    const endIso = selectedDateEndIso();
+    if (endIso) query = query.lte('created_at', endIso);
+
+    const { data, error } = await query;
 
     if (error) {
       showMessage(`讀取失敗：${error.message}`, 'error');
       return;
     }
 
-    renderTimeline(data || []);
-    showMessage(`已載入 ${dateStr} 的 ${data.length} 筆紀錄。`, 'success');
+    const rows = data || [];
+    state.hasOlder = rows.length > PAGE_SIZE;
+    const pageRows = rows.slice(0, PAGE_SIZE);
+
+    if (pageRows.length === 0 && state.pageIndex > 0) {
+      state.pageIndex -= 1;
+      return loadTimeline();
+    }
+
+    renderTimeline(pageRows);
+    updatePaginationUI();
+    showMessage(
+      pageRows.length
+        ? `已載入第 ${state.pageIndex + 1} 頁，共 ${pageRows.length} 筆。`
+        : '目前沒有符合條件的足跡。',
+      'success'
+    );
   }
 
   function renderTimeline(items) {
@@ -189,22 +244,27 @@
     if (!state.user) {
       latestTime.textContent = '尚未登入';
       timeline.innerHTML = '<div class="empty-box">請先登入帳號，系統才會顯示您的足跡。</div>';
+      updatePaginationUI();
       return;
     }
 
     if (!items.length) {
       latestTime.textContent = '尚無資料';
-      timeline.innerHTML = `<div class="empty-box">${escapeHtml(formatDateLabel(state.selectedDate))} 還沒有任何足跡。</div>`;
+      const scope = state.selectedDate
+        ? `${escapeHtml(formatDateLabel(state.selectedDate))} 以前`
+        : '目前';
+      timeline.innerHTML = `<div class="empty-box">${scope}沒有可顯示的足跡。</div>`;
+      updatePaginationUI();
       return;
     }
 
-    latestTime.textContent = formatTime(items[0].created_at);
+    latestTime.textContent = formatDateTime(items[0].created_at);
     timeline.innerHTML = items.map((item) => {
       const sourceText = item.source === 'voice' ? '語音輸入' : '鍵盤輸入';
       return `
         <article class="timeline-item">
           <div class="timeline-meta">
-            <span>${formatTime(item.created_at)}</span>
+            <span>${formatDateTime(item.created_at)}</span>
             <span class="source-badge">${escapeHtml(sourceText)}</span>
           </div>
           <div class="timeline-content">${escapeHtml(item.content)}</div>
@@ -241,8 +301,9 @@
 
     entryInput.value = '';
     entryInput.dataset.source = 'keyboard';
+    resetTimelineState();
     showMessage('已成功儲存。', 'success');
-    await loadLogsByDate(state.selectedDate);
+    await loadTimeline();
   }
 
   function updateAuthUI() {
@@ -254,6 +315,21 @@
     authBadge.classList.toggle('active', signedIn);
     signedInText.textContent = signedIn ? `目前帳號：${state.user.email || state.user.id}` : '';
     setAuthRequiredDisabled(!signedIn);
+
+    if (signedIn) {
+      mainContainer.appendChild(authCard);
+      mainContainer.appendChild(legacyCard);
+    } else {
+      mainContainer.prepend(authCard);
+    }
+  }
+
+  function updatePaginationUI() {
+    const signedIn = Boolean(state.user);
+    newerBtn.disabled = !signedIn || state.pageIndex === 0;
+    olderBtn.disabled = !signedIn || !state.hasOlder;
+    latestBtn.disabled = !signedIn || (!state.selectedDate && state.pageIndex === 0);
+    pageStatus.textContent = `第 ${state.pageIndex + 1} 頁`;
   }
 
   function setAuthRequiredDisabled(disabled) {
@@ -262,6 +338,7 @@
     datePicker.disabled = disabled;
     refreshBtn.disabled = disabled;
     voiceBtn.disabled = disabled;
+    updatePaginationUI();
   }
 
   function setAuthButtonsDisabled(disabled) {
@@ -277,6 +354,9 @@
     saveBtn.disabled = disabled;
     refreshBtn.disabled = disabled;
     voiceBtn.disabled = disabled;
+    latestBtn.disabled = disabled;
+    newerBtn.disabled = disabled;
+    olderBtn.disabled = disabled;
   }
 
   function showBox(element, message, type = 'success', autoHide = true) {
@@ -294,8 +374,8 @@
     showBox(messageBox, message, type, autoHide);
   }
 
-  function formatTime(isoString) {
-    try { return taipeiTimeFormatter.format(new Date(isoString)); }
+  function formatDateTime(isoString) {
+    try { return taipeiDateTimeFormatter.format(new Date(isoString)); }
     catch (_error) { return isoString; }
   }
 
@@ -304,22 +384,14 @@
     return `${year}/${month}/${day}`;
   }
 
-  function getTaipeiDateString(date) {
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Taipei',
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(date);
-    const year = parts.find(p => p.type === 'year')?.value;
-    const month = parts.find(p => p.type === 'month')?.value;
-    const day = parts.find(p => p.type === 'day')?.value;
-    return `${year}-${month}-${day}`;
-  }
-
   function updateSectionTitle() {
-    const todayStr = getTaipeiDateString(new Date());
-    logSectionTitle.textContent = state.selectedDate === todayStr
-      ? '今日足跡'
-      : `${formatDateLabel(state.selectedDate)} 足跡`;
+    if (state.selectedDate) {
+      logSectionTitle.textContent = `${formatDateLabel(state.selectedDate)} 以前的最近足跡`;
+      logHint.textContent = `顯示截至 ${formatDateLabel(state.selectedDate)} 23:59（台灣時間）以前的紀錄，每頁 10 筆。`;
+    } else {
+      logSectionTitle.textContent = '最近足跡';
+      logHint.textContent = '顯示目前帳號最新的紀錄，每頁 10 筆。';
+    }
   }
 
   function escapeHtml(value) {
@@ -329,6 +401,13 @@
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#39;');
+  }
+
+  function hidePassword() {
+    if (!togglePasswordBtn) return;
+    passwordInput.type = 'password';
+    togglePasswordBtn.textContent = '顯示密碼';
+    togglePasswordBtn.setAttribute('aria-pressed', 'false');
   }
 
   function initSpeech() {
@@ -450,31 +529,55 @@
 
   loginBtn.addEventListener('click', login);
   logoutBtn.addEventListener('click', logout);
+
   togglePasswordBtn?.addEventListener('click', () => {
     const show = passwordInput.type === 'password';
     passwordInput.type = show ? 'text' : 'password';
     togglePasswordBtn.textContent = show ? '隱藏密碼' : '顯示密碼';
     togglePasswordBtn.setAttribute('aria-pressed', String(show));
   });
+
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && togglePasswordBtn) {
-      passwordInput.type = 'password';
-      togglePasswordBtn.textContent = '顯示密碼';
-      togglePasswordBtn.setAttribute('aria-pressed', 'false');
-    }
+    if (document.hidden) hidePassword();
   });
+  window.addEventListener('pagehide', hidePassword);
+
   claimLegacyBtn.addEventListener('click', claimLegacyLogs);
   saveBtn.addEventListener('click', saveEntry);
-  refreshBtn.addEventListener('click', () => loadLogsByDate(state.selectedDate));
-  datePicker.addEventListener('change', (event) => {
-    if (event.target.value && state.user) loadLogsByDate(event.target.value);
+  refreshBtn.addEventListener('click', loadTimeline);
+
+  datePicker.addEventListener('change', () => {
+    state.selectedDate = datePicker.value || '';
+    state.pageIndex = 0;
+    state.hasOlder = false;
+    loadTimeline();
   });
+
+  latestBtn.addEventListener('click', () => {
+    resetTimelineState();
+    loadTimeline();
+  });
+
+  newerBtn.addEventListener('click', () => {
+    if (state.pageIndex <= 0) return;
+    state.pageIndex -= 1;
+    loadTimeline();
+  });
+
+  olderBtn.addEventListener('click', () => {
+    if (!state.hasOlder) return;
+    state.pageIndex += 1;
+    loadTimeline();
+  });
+
   passwordInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') login();
   });
+
   legacyCodeInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') claimLegacyLogs();
   });
+
   entryInput.addEventListener('input', () => {
     if (!entryInput.value.trim()) entryInput.dataset.source = 'keyboard';
   });

@@ -20,7 +20,59 @@
       </div>
     </header>
 
-    <main class="container">
+    <main id="mainContainer" class="container">
+      <section class="card input-card">
+        <div class="section-title-wrap">
+          <h2>此刻記一筆</h2>
+          <p id="todayLabel" class="small-muted"></p>
+        </div>
+
+        <label for="entryInput" class="label">想法 / 行動紀錄</label>
+        <textarea id="entryInput" data-requires-auth="true" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
+
+        <div class="toolbar">
+          <button id="saveBtn" class="btn primary" data-requires-auth="true">送出記錄</button>
+          <button id="voiceBtn" class="btn secondary" type="button" data-requires-auth="true">🎙️ 開始語音</button>
+          <button id="refreshBtn" class="btn ghost" type="button" data-requires-auth="true">重新整理</button>
+          <span id="voiceStatus" class="status-text"></span>
+        </div>
+
+        <div id="messageBox" class="message-box" aria-live="polite"></div>
+      </section>
+
+      <section class="stats-grid">
+        <article class="card stat-card">
+          <p class="stat-label">本頁筆數</p>
+          <p id="todayCount" class="stat-value">0</p>
+        </article>
+        <article class="card stat-card">
+          <p class="stat-label">本頁最新記錄</p>
+          <p id="latestTime" class="stat-value small">尚無資料</p>
+        </article>
+      </section>
+
+      <section class="card log-card">
+        <div class="section-title-wrap row-between">
+          <div>
+            <h2 id="logSectionTitle">最近足跡</h2>
+            <p id="logHint" class="small-muted">顯示目前帳號最新的 10 筆紀錄。</p>
+          </div>
+          <div class="date-tools">
+            <label for="datePicker" class="date-label">截至日期</label>
+            <input id="datePicker" class="date-input" type="date" data-requires-auth="true" />
+            <button id="latestBtn" class="btn ghost compact" type="button" data-requires-auth="true">回到最新</button>
+          </div>
+        </div>
+
+        <div class="pagination-bar" aria-label="足跡分頁">
+          <button id="newerBtn" class="btn ghost compact" type="button" data-requires-auth="true">← 較新 10 筆</button>
+          <span id="pageStatus" class="status-text">第 1 頁</span>
+          <button id="olderBtn" class="btn ghost compact" type="button" data-requires-auth="true">較舊 10 筆 →</button>
+        </div>
+
+        <div id="timeline" class="timeline"></div>
+      </section>
+
       <section id="authCard" class="card auth-card">
         <div class="section-title-wrap row-between auth-heading">
           <div>
@@ -46,7 +98,6 @@
           </div>
           <div class="toolbar">
             <button id="loginBtn" class="btn primary" type="button">登入</button>
-            
           </div>
           <div class="account-links" aria-label="帳號相關連結">
             <a href="https://bagilu.github.io/P130/" target="_blank" rel="noopener">還沒有帳號？前往 P130 註冊</a>
@@ -59,6 +110,7 @@
         <div id="signedInPanel" hidden>
           <p id="signedInText" class="signed-in-text"></p>
           <div class="toolbar">
+            <a class="btn ghost account-link-btn" href="https://bagilu.github.io/P130/" target="_blank" rel="noopener">帳號設定</a>
             <button id="logoutBtn" class="btn ghost" type="button">登出</button>
           </div>
         </div>
@@ -69,7 +121,7 @@
       <section id="legacyCard" class="card legacy-card" hidden>
         <div class="section-title-wrap">
           <h2>資料工具：匯入舊足跡</h2>
-          <p class="small-muted">若您以前使用 access code，登入後可在此把尚未歸戶的舊紀錄一次綁定到目前帳號。完成後，日常使用不再需要 access code。</p>
+          <p class="small-muted">僅供舊版資料歸戶。若舊紀錄已經綁定帳號，不需要再次匯入。</p>
         </div>
         <div class="access-row">
           <div class="access-field">
@@ -80,55 +132,11 @@
         </div>
         <div id="claimMessage" class="message-box" aria-live="polite"></div>
       </section>
-
-      <section class="card input-card">
-        <div class="section-title-wrap">
-          <h2>此刻記一筆</h2>
-          <p id="todayLabel" class="small-muted"></p>
-        </div>
-
-        <label for="entryInput" class="label">想法 / 行動紀錄</label>
-        <textarea id="entryInput" data-requires-auth="true" rows="5" maxlength="1000" placeholder="例如：正在整理課程大綱。突然想到可把學生的反思日誌做成可視化時間軸。"></textarea>
-
-        <div class="toolbar">
-          <button id="saveBtn" class="btn primary" data-requires-auth="true">送出記錄</button>
-          <button id="voiceBtn" class="btn secondary" type="button" data-requires-auth="true">🎙️ 開始語音</button>
-          <button id="refreshBtn" class="btn ghost" type="button" data-requires-auth="true">重新整理</button>
-          <span id="voiceStatus" class="status-text"></span>
-        </div>
-
-        <div id="messageBox" class="message-box" aria-live="polite"></div>
-      </section>
-
-      <section class="stats-grid">
-        <article class="card stat-card">
-          <p class="stat-label">所選日期筆數</p>
-          <p id="todayCount" class="stat-value">0</p>
-        </article>
-        <article class="card stat-card">
-          <p class="stat-label">最新記錄時間</p>
-          <p id="latestTime" class="stat-value small">尚無資料</p>
-        </article>
-      </section>
-
-      <section class="card log-card">
-        <div class="section-title-wrap row-between">
-          <div>
-            <h2 id="logSectionTitle">今日足跡</h2>
-            <p class="small-muted">只顯示目前登入帳號自己的紀錄，依時間倒序。</p>
-          </div>
-          <div class="date-tools">
-            <label for="datePicker" class="date-label">選擇日期</label>
-            <input id="datePicker" class="date-input" type="date" data-requires-auth="true" />
-          </div>
-        </div>
-        <div id="timeline" class="timeline"></div>
-      </section>
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260925-1"></script>
 </body>
 </html>

@@ -1,57 +1,45 @@
-# P06 足跡 — V0.7 SDS v3.1 Auth Alignment
+# P06 足跡 — V0.8 Recent 10 Timeline
 
-P06 足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。本版以 V0.6.x 帳號版為基礎，依 SBI-P-SDS v3.1 修正登入與帳號生命週期分工。
+P06 足跡是一個以 GitHub Pages + Supabase 建置的輕量個人時序日誌系統。本版延續 V0.7 的 SBI-P-SDS v3.1 Auth 架構，只調整前端資訊架構與足跡瀏覽方式。
 
-## V0.7 重點
+## V0.8 重點
 
-1. P06 保留自己的 Email + password 登入頁，使用 Supabase `signInWithPassword()`。
-2. P06 不再提供註冊功能；註冊、Email 驗證、忘記／重設／修改密碼、帳號基本資料統一由 P130 Account Center 處理。
-3. 登入頁提供 P130 註冊、忘記密碼、帳號設定連結。
-4. Auth session 使用 P06 專屬 `storageKey = P06-auth`。
-5. 保留 `persistSession: true` 與 `autoRefreshToken: true`，同一手機／瀏覽器一般不需每次重新登入。
-6. 新紀錄以 `auth.uid()` / `UserID` 綁定使用者；RLS 仍限制登入者只能讀寫自己的 P06 紀錄。
-7. 舊 access code 僅保留為 legacy data migration 工具，不再是日常登入或授權機制。
-8. 加入「顯示密碼」按鈕；切離頁面時自動恢復隱藏。
-9. 不新增 P06 自有帳密資料表，不建立 auth.users trigger。
-10. Passkey／指紋尚未在 P06 個別實作；如未來需要，應由 shared Auth / P130 層級統一規劃。
+1. 登入前：「我的帳號」自動移到頁面最上方，方便登入。
+2. 登入後：高頻的「此刻記一筆」與「最近足跡」留在前面；「我的帳號」與「資料工具：匯入舊足跡」移到頁面最後。
+3. 最近足跡預設顯示最新 10 筆，不再限制於今天。
+4. 每筆顯示台灣時區的日期＋時間，適合跨日瀏覽。
+5. 可選「截至日期」：例如選 2026-09-20，即顯示該日 23:59:59 以前的最新 10 筆。
+6. 提供「← 較新 10 筆」與「較舊 10 筆 →」分頁。
+7. 提供「回到最新」快速清除日期條件與分頁位置。
+8. 新增一筆足跡後，自動回到最新 10 筆。
+9. 舊 access code 匯入若沒有可匯入資料，訊息改為「可能已完成歸戶」，避免被誤解為 access code 錯誤。
 
-## P130
+## 帳號規範
 
-- Account Center: https://bagilu.github.io/P130/
-- Forgot password: https://bagilu.github.io/P130/forgot-password.html
+沿用 V0.7 / SBI-P-SDS v3.1：
 
-P130 與 P06 使用同一個 Supabase Project / shared Auth；P130 管理帳號生命週期，P06 管理自己的資料與 authorization。
+- P06 只負責登入。
+- 註冊、Email 驗證、忘記／重設／修改密碼、帳號基本資料由 P130 Account Center 管理。
+- Auth storageKey：`P06-auth`。
+- 個人資料仍以 `auth.uid()` / `TblP06DiaryLogs."UserID"` 進行 RLS 隔離。
+- legacy access code 只作為舊資料歸戶工具。
 
-## 資料庫
+## 資料庫與權限
 
-主表：`public."TblP06DiaryLogs"`
+V0.8 **沒有資料庫 schema migration**，也沒有新增或修改 Supabase 權限。
 
-帳號欄位：
+因此由 V0.7 升級 V0.8：
 
-- `"UserID" uuid NULL REFERENCES auth.users(id)`
+1. 直接部署新的 `index.html`、`app.js`、`styles.css`。
+2. 不需要重跑 Account Upgrade SQL。
+3. 不需要修改其他 P 專案。
+4. 若需例行檢查，可執行既有 `Database/99_P06_HealthCheck.sql`（唯讀）。
 
-舊紀錄可維持 `UserID IS NULL`，直到登入後透過 `p06_claim_legacy_logs(text)` 歸戶。
+## 查詢方式
 
-## SQL 安全範圍
+最近足跡查詢：
 
-P06 SQL 僅能操作 P06 自己的物件：
-
-- `TblP06...`
-- `VwP06...`
-- `p06_...` / P06 專屬 function、policy、index
-
-禁止：
-
-- schema-wide `GRANT / REVOKE ... ON ALL TABLES`
-- `ALTER DEFAULT PRIVILEGES`
-- `GRANT ALL / REVOKE ALL ON SCHEMA public`
-- 修改任何其他 P 專案物件
-- 使用 service role key 於前端
-
-## 部署設定
-
-正式 GitHub Pages 仍使用 `config.js`。範本檔為 `config-sample.js`；修改版本時不得以範本覆蓋正式 `config.js`。
-
-## 注意
-
-V0.7 將 storageKey 從舊版 `p06-auth-token` 改為 `P06-auth`。既有使用者升級後可能需要重新登入一次；之後 session 會以新的 P06 專屬 key 長期保存。
+- 只查目前登入者的 `UserID`。
+- `created_at DESC`。
+- 每頁 10 筆，額外讀第 11 筆判斷是否仍有更舊資料。
+- 選日期時，增加 `created_at <= 該日 23:59:59.999（+08:00）` 條件。

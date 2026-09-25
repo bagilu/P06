@@ -618,3 +618,46 @@ textarea:focus {
     width: 100%;
   }
 }
+
+
+/* V0.8 recent-ten timeline */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.btn.compact {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+.account-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+#authCard,
+#legacyCard {
+  scroll-margin-top: 16px;
+}
+@media (max-width: 680px) {
+  .pagination-bar {
+    flex-wrap: wrap;
+  }
+  .pagination-bar .btn {
+    flex: 1 1 140px;
+  }
+  .pagination-bar #pageStatus {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+  .date-tools .btn.compact {
+    width: 100%;
+  }
+}
